@@ -1,0 +1,61 @@
+name: wheel - macOS
+
+on:
+  push:
+    tags:
+      - '*'
+jobs:
+  wheel_macos:
+    name: macOS wheel
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest]
+        python-version: [3.7, 3.8]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: check C++ compiler and Python
+        run: |
+          clang --version
+          python --version
+      - name: Install dependencies
+        run: |
+          python -m pip install --no-cache-dir --upgrade pip
+          python -m pip install --no-cache-dir "poetry<2,>=1.0"
+          python -m pip install --no-cache-dir "mypy-protobuf~=1.0"
+      - name: Build libraries
+        run: |
+          make
+      - name: Build wheel
+        run: |
+          python -m poetry build -v
+      - name: Install wheel
+        run: |
+          python -m pip install dist/*.whl
+      - name: Install test dependencies
+        if: success()
+        run: |
+          # export test dependencies from pyproject.toml, install them
+          python -m poetry export -f requirements.txt --dev -o requirements.txt
+          python -m pip install -r requirements.txt
+      - name: Tests
+        env:
+          PYTEST_ARGS: "--forked"
+        if: success()
+        run: |
+          mkdir testdir
+          cd testdir
+          python -m pytest -s -v --cov=httpstan --cov-fail-under=93 $PYTEST_ARGS ../tests
+          cd ..
+      - name: Upload to pypi
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_PASSWORD }}
+        if: success()
+        run: |
+          python -m pip install twine
+          python -m twine upload --repository-url https://test.pypi.org/legacy/ -u ${TWINE_USERNAME} -p ${TWINE_PASSWORD} --skip-existing dist/*

@@ -1,6 +1,9 @@
 name: wheel - macOS
 
 on:
+  pull_request:
+    branches:
+      - 'master'
   push:
     tags:
       - '*'

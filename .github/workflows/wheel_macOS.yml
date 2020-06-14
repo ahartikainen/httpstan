@@ -36,13 +36,15 @@ jobs:
       - name: Build wheel
         run: |
           python -m poetry build -v
-      - name: Install wheel
-        run: |
-          python -m pip install dist/*.whl
       - name: Fix wheel
         run: |
           python -m pip install delocate
           delocate-wheel dist/*.whl -w /wheelhouse
+      - name: Install wheel
+        run: |
+          ls dist
+          ls /wheelhouse
+          python -m pip install /wheelhouse/*.whl
       - name: Install test dependencies
         if: success()
         run: |
@@ -58,11 +60,3 @@ jobs:
           cd testdir
           python -m pytest -s -v --cov=httpstan --cov-fail-under=93 $PYTEST_ARGS ../tests
           cd ..
-      - name: Upload to pypi
-        env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_PASSWORD }}
-        if: success()
-        run: |
-          python -m pip install twine
-          python -m twine upload --repository-url https://test.pypi.org/legacy/ -u ${TWINE_USERNAME} -p ${TWINE_PASSWORD} --skip-existing dist/*

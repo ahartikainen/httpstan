@@ -45,6 +45,8 @@ jobs:
       - name: Install wheel
         if: success()
         run: |
+          ls dist
+          ls /wheelhouse
           python -m pip install /wheelhouse/*.whl
       - name: Install test dependencies
         if: success()
@@ -61,11 +63,3 @@ jobs:
           cd testdir
           python -m pytest -s -v --cov=httpstan --cov-fail-under=93 $PYTEST_ARGS ../tests
           cd ..
-      - name: Upload to pypi
-        if: success()
-        env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_PASSWORD }}
-        run: |
-          python -m pip install twine
-          python -m twine upload --repository-url https://test.pypi.org/legacy/ -u ${TWINE_USERNAME} -p ${TWINE_PASSWORD} --skip-existing /wheelhouse/*

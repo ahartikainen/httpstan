@@ -38,7 +38,7 @@ jobs:
           python -m poetry build -v
       - name: Fix wheel
         run: |
-          python -m pip install wheel, delocate
+          python -m pip install wheel delocate
           delocate-wheel -v dist/*.whl -w ./wheelhouse
       - name: Install wheel
         run: |

@@ -38,11 +38,14 @@ jobs:
           python -m poetry build -v
       - name: Fix wheel
         run: |
-          python -m pip install wheel delocate
+          python -m pip install wheel
+          python -m pip install delocate
           delocate-wheel -v dist/*.whl -w ./wheelhouse
       - name: Install wheel
         run: |
           ls dist
+          echo "Wheelhouse"
+          ls wheelhouse
           python -m pip install wheelhouse/*.whl
       - name: Install test dependencies
         if: success()

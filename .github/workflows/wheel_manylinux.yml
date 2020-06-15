@@ -41,7 +41,7 @@ jobs:
         env:
           PLAT: manylinux2014_x86_64
         run: |
-          auditwheel repair dist/*.whl --plat "${PLAT}" -w "/wheelhouse"
+          auditwheel repair dist/*.whl -w "/wheelhouse"
       - name: Install wheel
         if: success()
         run: |

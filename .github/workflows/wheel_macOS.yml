@@ -1,9 +1,6 @@
 name: wheel - macOS
 
 on:
-  pull_request:
-    branches:
-      - 'master'
   push:
     tags:
       - '*'
@@ -41,11 +38,9 @@ jobs:
           python -m pip install wheel
           python -m pip install delocate
           delocate-wheel -v dist/*.whl -w ./wheelhouse
+          delocate-addplat -x 10_9_intel -x 10_10_intel .wheelhouse/*.whl
       - name: Install wheel
         run: |
-          ls dist
-          echo "Wheelhouse"
-          ls wheelhouse
           python -m pip install wheelhouse/*.whl
       - name: Install test dependencies
         if: success()
@@ -62,3 +57,10 @@ jobs:
           cd testdir
           python -m pytest -s -v --cov=httpstan --cov-fail-under=93 $PYTEST_ARGS ../tests
           cd ..
+      - name: Upload to pypi
+        env:
+          TWINE_TOKEN: ${{ secrets.TEST_PYPI_PASSWORD }}
+        if: success()
+        run: |
+          python -m pip install twine
+          python -m twine upload --repository-url https://test.pypi.org/legacy/ -u __token__ -p ${TWINE_TOKEN} --skip-existing wheelhouse/*

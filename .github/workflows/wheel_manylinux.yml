@@ -2,6 +2,8 @@ name: wheel - manylinux2014
 
 on:
   push:
+    branches:
+      - '*'
     tags:
       - '*'
 jobs:
@@ -59,5 +61,4 @@ jobs:
           TWINE_TOKEN: ${{ secrets.TEST_PYPI_PASSWORD }}
         if: success()
         run: |
-          python -m pip install twine
-          python -m twine upload --repository-url https://test.pypi.org/legacy/ -u __token__ -p ${TWINE_TOKEN} --skip-existing wheelhouse/*
+          ls wheelhouse

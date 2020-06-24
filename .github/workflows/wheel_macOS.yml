@@ -17,6 +17,9 @@ jobs:
     env:
       MACOSX_DEPLOYMENT_TARGET: 10.9
     steps:
+      - name: debug
+        run: |
+          ls /usr/local/Cellar/python
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2

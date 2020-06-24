@@ -50,6 +50,7 @@ jobs:
         env:
           CC: gcc
         run: |
+          python -m poetry run pip install "Cython<1,>=0.29"
           python -m poetry install -v
       - name: Run tests
         env:

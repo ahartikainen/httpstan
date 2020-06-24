@@ -1,0 +1,58 @@
+name: httpstan
+
+on:
+  push:
+    branches:
+      - '*'
+jobs:
+  pytest:
+    name: Run tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest]
+        python-version: [3.8]
+    steps:
+      - uses: goanpeca/setup-miniconda@v1
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+          miniconda-version: "latest"
+          channels: msys2
+      - name: Conda info
+        shell: pwsh
+        run: conda info
+      - name: Conda list
+        shell: pwsh
+        run: conda list
+      - name: install mingw-w64-toolchain
+        shell: pwsh
+        run: conda install m2w64-toolchain libpython
+      - name: debug
+        run: |
+          python -v
+          which python
+          make --version
+          which make
+          gcc --version
+          which gcc
+      - name: Install dependencies
+        run: |
+          python -m pip install --no-cache-dir --upgrade pip
+          python -m pip install --no-cache-dir "poetry<2,>=1.0"
+          python -m pip install --no-cache-dir "mypy-protobuf~=1.0"
+      - name: Build libraries
+        env:
+          CC: gcc
+        run: |
+          mingw32-make
+      - name: Install httpstan
+        env:
+          CC: gcc
+        run: |
+          python -m poetry install -v
+      - name: Run tests
+        env:
+          CC: gcc
+        run: |
+          python -m poetry run pytest -s -v --cov=httpstan --cov-fail-under=93 --forked tests

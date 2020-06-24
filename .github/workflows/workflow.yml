@@ -45,7 +45,7 @@ jobs:
         env:
           CC: gcc
         run: |
-          mingw32-make
+          mingw32-make -f Makefile
       - name: Install httpstan
         env:
           CC: gcc

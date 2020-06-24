@@ -30,7 +30,7 @@ jobs:
         run: conda install m2w64-toolchain libpython
       - name: debug
         run: |
-          python -v
+          python --version
           which python
           make --version
           which make

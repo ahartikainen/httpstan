@@ -23,7 +23,7 @@ jobs:
           ls /usr/local/Cellar/python
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
-      - run: |
+        run: |
           brew install sashkab/python/python@${{ matrix.python-version }}
           echo "::add-path::${PYTHON}"
       - name: check C++ compiler and Python

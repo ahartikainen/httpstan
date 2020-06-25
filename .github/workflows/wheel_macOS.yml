@@ -16,15 +16,18 @@ jobs:
         python-version: [3.7, 3.8]
     env:
       MACOSX_DEPLOYMENT_TARGET: 10.9
-      PYTHON: /usr/local/opt/python@3.X/bin/python${{ matrix.python-version }}
+      PYTHON: /usr/local/opt/python@${{ matrix.python-version }}/bin
     steps:
       - name: debug
         run: |
           ls /usr/local/Cellar/python
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
-        run: |
+       run: |
           brew install sashkab/python/python@${{ matrix.python-version }}
+          ls /usr/local/opt/
+          ls /usr/local/opt/python@${{ matrix.python-version }}
+          ls /usr/local/opt/python@${{ matrix.python-version }}/bin
           echo "::add-path::${PYTHON}"
       - name: check C++ compiler and Python
         run: |

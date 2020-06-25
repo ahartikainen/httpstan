@@ -23,7 +23,7 @@ jobs:
           ls /usr/local/Cellar/python
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
-       run: |
+        run: |
           brew install sashkab/python/python@${{ matrix.python-version }}
           ls /usr/local/opt/
           ls /usr/local/opt/python@${{ matrix.python-version }}

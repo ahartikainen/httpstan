@@ -16,7 +16,7 @@ jobs:
         python-version: [3.7, 3.8]
     env:
       MACOSX_DEPLOYMENT_TARGET: 10.9
-      PYTHON_EXE: python@${{ matrix.python-version }}
+      PYTHON_EXE: python${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}

@@ -33,6 +33,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         run: |
+          brew install python@${{ matrix.python-version }}
           ls /usr/local/Cellar/python
           echo ""
           echo ""
@@ -43,7 +44,6 @@ jobs:
           echo "                 "
           echo "                 "
           ls /usr/local/lib/python3.8
-          echo "::add-path::${PYTHON_LOCATION}"
       - name: check C++ compiler and Python
         run: |
           clang --version

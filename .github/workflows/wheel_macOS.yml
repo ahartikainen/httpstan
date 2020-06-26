@@ -16,71 +16,49 @@ jobs:
         python-version: [3.7, 3.8]
     env:
       MACOSX_DEPLOYMENT_TARGET: 10.9
-      PYTHON_LOCATION: /usr/local/lib/python${{ matrix.python-version }}
+      PYTHON_EXE: python@${{ matrix.python-version }}
     steps:
-      - name: debug
-        run: |
-          ls /usr/local/Cellar
-          echo ""
-          echo ""
-          ls /usr/local/Cellar/python
-          echo ""
-          echo ""
-          ls /usr/local/
-          echo ""
-          echo ""
-          ls /usr/local/bin/
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         run: |
           brew install python@${{ matrix.python-version }}
-          ls /usr/local/Cellar/python
-          echo ""
-          echo ""
-          ls /usr/local/lib/
-          echo "                 "
-          echo "                 "
-          ls /usr/local/lib/python3.7
-          echo "                 "
-          echo "                 "
-          ls /usr/local/lib/python3.8
       - name: check C++ compiler and Python
         run: |
           clang --version
-          python3 --version
-          which python3
+          python@${{ matrix.python-version }} --version
+          which python@${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          python3 -m pip install --no-cache-dir --upgrade pip
-          python3 -m pip install --no-cache-dir "poetry<2,>=1.0"
-          python3 -m pip install --no-cache-dir "mypy-protobuf~=1.0"
+          $PYTHON_EXE -m pip install --no-cache-dir --upgrade pip
+          $PYTHON_EXE -m pip install --no-cache-dir "poetry<2,>=1.0"
+          $PYTHON_EXE -m pip install --no-cache-dir "mypy-protobuf~=1.0"
       - name: Build libraries
         run: |
           make
       - name: Build wheel
         run: |
-          python3 -m poetry run pip install "Cython<1,>=0.29"
-          python3 -m poetry build -v
+          $PYTHON_EXE -m poetry run pip install "Cython<1,>=0.29"
+          $PYTHON_EXE -m poetry build -v
       - name: Fix wheel
         run: |
-          python3 -m pip install wheel
-          python3 -m pip install delocate
+          $PYTHON_EXE -m pip install wheel
+          $PYTHON_EXE -m pip install delocate
           delocate-wheel -v dist/*.whl -w wheelhouse
       - name: Install wheel
         run: |
-          python3 -m pip install wheelhouse/*.whl
+          $PYTHON_EXE -m pip install wheelhouse/*.whl
       - name: Install test dependencies
         if: success()
         run: |
           # export test dependencies from pyproject.toml, install them
-          python3 -m poetry export -f requirements.txt --dev -o requirements.txt
-          python3 -m pip install -r requirements.txt
+          $PYTHON_EXE -m poetry export -f requirements.txt --dev -o requirements.txt
+          $PYTHON_EXE -m pip install -r requirements.txt
       - name: Tests
         if: success()
         run: |
           mkdir testdir
           cd testdir
-          python3 -m pytest -s -v --cov=httpstan --cov-fail-under=93 ../tests
+          $PYTHON_EXE -m pytest -s -v --cov=httpstan --cov-fail-under=93 ../tests
       - name: Upload to pypi
         env:
           TWINE_TOKEN: ${{ secrets.TEST_PYPI_PASSWORD }}

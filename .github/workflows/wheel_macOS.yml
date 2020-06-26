@@ -21,6 +21,9 @@ jobs:
       - name: debug
         run: |
           ls /usr/local/Cellar/python
+          echo ""
+          echo ""
+          ls /usr/local/bin/
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         run: |

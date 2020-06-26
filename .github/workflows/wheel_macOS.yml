@@ -24,6 +24,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         run: |
+          ls /usr/local/Cellar/python
+          echo ""
+          echo ""
           ls /usr/local/lib/
           echo "                 "
           echo "                 "

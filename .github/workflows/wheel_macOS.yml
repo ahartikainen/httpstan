@@ -20,7 +20,13 @@ jobs:
     steps:
       - name: debug
         run: |
+          ls /usr/local/Cellar
+          echo ""
+          echo ""
           ls /usr/local/Cellar/python
+          echo ""
+          echo ""
+          ls /usr/local/
           echo ""
           echo ""
           ls /usr/local/bin/

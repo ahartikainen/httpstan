@@ -29,8 +29,8 @@ jobs:
       - name: check C++ compiler and Python
         run: |
           clang --version
-          python@${{ matrix.python-version }} --version
-          which python@${{ matrix.python-version }}
+          $PYTHON_EXE --version
+          which $PYTHON_EXE
       - name: Install dependencies
         run: |
           $PYTHON_EXE -m pip install --no-cache-dir --upgrade pip

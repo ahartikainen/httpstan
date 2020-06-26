@@ -21,7 +21,11 @@ jobs:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         run: |
-          brew reinstall python@${{ matrix.python-version }}
+          ls /usr/local/opt/python
+          echo " "
+          echo " "
+          ls /usr/local/bin
+          ls /usr/local/sbin
       - name: check C++ compiler and Python
         run: |
           clang --version

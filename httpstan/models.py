@@ -22,6 +22,8 @@ from typing import List, Optional, Tuple
 
 import setuptools
 
+import pybind11
+
 import httpstan.build_ext
 import httpstan.cache
 import httpstan.compile
@@ -132,18 +134,20 @@ async def generate_model_cpp_code(program_code: str) -> str:
     return cpp_code
 
 
-def services_extension_module_pyx_code(cpp_code_path: pathlib.Path) -> str:
+def services_extension_module_cpp_code(module_name: str, model_name: str) -> str:
     """Return Cython code wrapping model-specific stan::services functions.
 
     Arguments:
-        cpp_code_path: Path to Stan model C++ code.
+        module_name: C++ module name.
+        model_name: C++ model name..
 
     Returns:
-        str: Cython wrapping code.
+        str: C++ wrapping code.
     """
 
-    pyx_code_template = importlib.resources.read_text(__package__, "anonymous_stan_model_services.pyx.template")
-    return string.Template(pyx_code_template).substitute(cpp_filename=cpp_code_path.as_posix())
+    cpp_code_template = importlib.resources.read_text(__package__, "anonymous_stan_model_services.cpp.template")
+    stan_model_name = f"model_{model_name.split('/')[1]}"
+    return string.Template(cpp_code_template).substitute(module_name=module_name, model_name=stan_model_name)
 
 
 async def build_services_extension_module(program_code: str, extra_compile_args: Optional[List[str]] = None) -> None:
@@ -163,18 +167,19 @@ async def build_services_extension_module(program_code: str, extra_compile_args:
     os.makedirs(model_directory_path, exist_ok=True)
 
     module_name = f"services_{model_name.split('/')[1]}"
-    cpp_code_path = model_directory_path / f"{module_name}.hpp"
-    pyx_code_path = cpp_code_path.with_suffix(".pyx")
+    hpp_code_path = model_directory_path / f"{module_name}.hpp"
+    cpp_code_path = hpp_code_path.with_suffix(".cpp")
 
-    cpp_code = await generate_model_cpp_code(program_code)
-    pyx_code = services_extension_module_pyx_code(cpp_code_path)
-    for path, code in zip([cpp_code_path, pyx_code_path], [cpp_code, pyx_code]):
+    hpp_code = await generate_model_cpp_code(program_code)
+    cpp_code = services_extension_module_cpp_code(module_name, model_name)
+    for path, code in zip([hpp_code_path, cpp_code_path], [hpp_code, cpp_code]):
         with open(path, "w") as fh:
             fh.write(code)
 
     httpstan_dir = os.path.dirname(__file__)
     callbacks_writer_pb_path = pathlib.Path(httpstan_dir) / "callbacks_writer.pb.cc"
     include_dirs = [
+        pybind11.get_include(),
         httpstan_dir,  # for socket_writer.hpp and socket_logger.hpp
         model_directory_path.as_posix(),
         os.path.join(httpstan_dir, "include"),
@@ -205,7 +210,7 @@ async def build_services_extension_module(program_code: str, extra_compile_args:
     extension = setuptools.Extension(
         module_name,
         language="c++",
-        sources=[pyx_code_path.as_posix(), callbacks_writer_pb_path.as_posix()],
+        sources=[cpp_code_path.as_posix(), callbacks_writer_pb_path.as_posix()],
         define_macros=stan_macros,
         include_dirs=include_dirs,
         library_dirs=[f"{PACKAGE_DIR / 'lib'}"],

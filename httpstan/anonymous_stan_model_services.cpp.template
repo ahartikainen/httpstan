@@ -1,0 +1,13 @@
+#include <${module_name}.hpp>
+#include <stan/model/model_header.hpp>
+#include <pybind11/pybind11.h>
+
+namespace py = pybind11;
+using stan::model::model_base_crtp;
+using namespace stan::math;
+
+
+PYBIND11_MODULE(${module_name}, m) {
+    py::class_<model_base_crtp<${model_name}_namespace::${model_name}>, ${model_name}_namespace::${model_name}>(m, "${model_name}")
+        .def(py::init<stan::io::var_context &, unsigned int>());
+}

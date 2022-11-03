@@ -140,3 +140,5 @@ ISC License.
 .. |pypi| image:: https://img.shields.io/pypi/v/httpstan.svg
     :target: https://pypi.org/project/httpstan/
     :alt: pypi version
+
+Bump for CI

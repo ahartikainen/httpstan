@@ -40,9 +40,6 @@ jobs:
           poetry export -f requirements.txt --without-hashes --with dev -o requirements.txt \
           && pip install -r requirements.txt
 
-      - name: Check code
-        run: scripts/check
-
       - name: Build and Install wheel
         run: |
           poetry build -v

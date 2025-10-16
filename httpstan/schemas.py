@@ -99,8 +99,8 @@ class CreateFitRequest(marshmallow.Schema):
             ["stan::services::sample::hmc_nuts_diag_e_adapt", "stan::services::sample::fixed_param"]
         ),
     )
-    data = fields.Nested(Data(), missing={})
-    init = fields.Nested(Data(), missing={})
+    data = fields.Nested(dump_default=Data(), load_default={})
+    init = fields.Nested(dump_default=Data(), load_default={})
     random_seed = fields.Integer(validate=validate.Range(min=0))
     chain = fields.Integer(validate=validate.Range(min=0))
     init_radius = fields.Number()
@@ -127,7 +127,7 @@ class Fit(marshmallow.Schema):
 
 
 class ShowParamsRequest(marshmallow.Schema):
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(dump_default=Data(), load_default={})
 
 
 class Parameter(marshmallow.Schema):  # noqa
@@ -191,7 +191,7 @@ class WriterMessage(marshmallow.Schema):
 class ShowLogProbRequest(marshmallow.Schema):
     """Schema for log_prob request."""
 
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(dump_default=Data(), load_default={})
     unconstrained_parameters = fields.List(fields.Float(), required=True)
     adjust_transform = fields.Boolean(missing=True)
 
@@ -199,7 +199,7 @@ class ShowLogProbRequest(marshmallow.Schema):
 class ShowLogProbGradRequest(marshmallow.Schema):
     """Schema for log_prob_grad request."""
 
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(dump_default=Data(), load_default={})
     unconstrained_parameters = fields.List(fields.Float(), required=True)
     adjust_transform = fields.Boolean(missing=True)
 
@@ -207,7 +207,7 @@ class ShowLogProbGradRequest(marshmallow.Schema):
 class ShowWriteArrayRequest(marshmallow.Schema):
     """Schema for write_array request."""
 
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(dump_default=Data(), load_default={})
     unconstrained_parameters = fields.List(fields.Float(), required=True)
     include_tparams = fields.Boolean(missing=True)
     include_gqs = fields.Boolean(missing=True)
@@ -216,5 +216,5 @@ class ShowWriteArrayRequest(marshmallow.Schema):
 class ShowTransformInitsRequest(marshmallow.Schema):
     """Schema for transform_inits request."""
 
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(dump_default=Data(), load_default={})
     constrained_parameters = fields.Nested(Data(), required=True)

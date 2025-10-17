@@ -5,12 +5,11 @@ they do they will likely encounter an ``ImportError`` due to the fact that they
 have not installed ``apispec``.
 
 """
-from typing import Optional
+from typing import Any
 
-import apispec
-import apispec.ext.marshmallow
-import apispec.utils
-import apispec.yaml_utils
+from apispec import APISpec, BasePlugin
+from apispec.ext.marshmallow import MarshmallowPlugin
+from apispec.yaml_utils import load_operations_from_docstring
 
 import httpstan
 import httpstan.views as views
@@ -21,27 +20,29 @@ except AttributeError:
     from doc.conf import version  # type: ignore
 
 
-class DocPlugin(apispec.BasePlugin):
-    def init_spec(self, spec: apispec.APISpec) -> None:
-        super().init_spec(spec)
-
-    def operation_helper(self, path: Optional[str], operations: dict, **kwargs: dict) -> None:  # type: ignore
+class DocPlugin(BasePlugin):
+    def operation_helper(
+            self, 
+            path: str | None, 
+            operations: dict[str, Any], 
+            **kwargs: Any
+        ) -> None:  # type: ignore
         """Operation helper that parses docstrings for operations. Adds a
         ``func`` parameter to `apispec.APISpec.path`.
         """
-        view = kwargs["view"]
-        doc_operations = apispec.yaml_utils.load_operations_from_docstring(view.__doc__)  # type: ignore
+        view = kwargs.get("view")
+        doc_operations = load_operations_from_docstring(getattr(view, "__doc__") or "")  # type: ignore
         operations.update(doc_operations)
 
 
-def openapi_spec() -> apispec.APISpec:
+def openapi_spec() -> APISpec:
     """Return OpenAPI (fka Swagger) spec for API."""
-    spec = apispec.APISpec(
+    spec = APISpec(
         title="httpstan HTTP-based REST API",
         version=version,
-        openapi_version="2.0",
+        openapi_version="3.0.3",
         # plugin order, MarshmallowPlugin resolves schema references created by DocPlugin
-        plugins=[DocPlugin(), apispec.ext.marshmallow.MarshmallowPlugin()],
+        plugins=[DocPlugin(), MarshmallowPlugin()],
     )
     spec.path(path="/v1/health", view=views.handle_health)
     spec.path(path="/v1/models", view=views.handle_create_model)

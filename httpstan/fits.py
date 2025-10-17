@@ -47,17 +47,17 @@ def calculate_fit_name(function: str, model_name: str, kwargs: dict) -> str:
         return f"{model_name}/fits/{id}"
 
     hash = hashlib.blake2b(digest_size=digest_size)
-    hash.update(function.encode())
-    hash.update(model_name.encode())
+    hash.update(function.encode("utf-8"))
+    hash.update(model_name.encode("utf-8"))
     hash.update(pickle.dumps(kwargs))
 
     # system identifiers
-    hash.update(httpstan.__version__.encode())
-    hash.update(sys.platform.encode())
-    hash.update(str(sys.maxsize).encode())
-    hash.update(sys.version.encode())
+    hash.update(httpstan.__version__.encode("utf-8"))
+    hash.update(sys.platform.encode("utf-8"))
+    hash.update(str(sys.maxsize).encode("utf-8"))
+    hash.update(sys.version.encode("utf-8"))
     # include sys.executable in hash to account for different `venv`s
-    hash.update(sys.executable.encode())
+    hash.update(sys.executable.encode("utf-8"))
 
     id = base64.b32encode(hash.digest()).decode().lower()
     return f"{model_name}/fits/{id}"

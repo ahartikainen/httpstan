@@ -33,11 +33,11 @@ def _split_data(
     """
     data = data.copy()
 
-    names_r: list[str] = []
+    names_r: list[bytes] = []
     values_r: list[float] = []
     dim_r: list[tuple[int, ...]] = []
 
-    names_i: list[str] = []
+    names_i: list[bytes] = []
     values_i: list[int] = []
     dim_i: list[tuple[int, ...]] = []
 

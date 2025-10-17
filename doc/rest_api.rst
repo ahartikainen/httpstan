@@ -9,5 +9,3 @@ An alternative single-page rendering of this documentation is available:
 
 This page and the alternative rendering are generated from an OpenAPI spec.
 This API uses conventions described in the document `API Design Guide <https://cloud.google.com/apis/design/>`_.
-
-.. openapi:: openapi.yaml

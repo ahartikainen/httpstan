@@ -12,16 +12,6 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
-    "sphinxcontrib.openapi",
-    "sphinxcontrib.redoc",
-]
-
-redoc = [
-    {
-        "name": "httpstan API",
-        "page": "api",
-        "spec": "openapi.yaml",
-    },
 ]
 
 source_suffix = ".rst"
@@ -42,33 +32,7 @@ autoapi_ignore = [
     "*lib*",
     "*include*",
     "*views.py",
-    "*openapi.py",
 ]
-
-################################################################################
-# openapi spec
-################################################################################
-
-
-def make_openapi_spec(_: Any) -> None:
-    print("conf.py: Generating openapi spec... ", end="")
-    source_dir = os.path.dirname(os.path.realpath(__file__))
-    output_path = os.path.join(source_dir, "openapi.yaml")
-
-    # Use mock for extension and generated modules modules so we do not need to
-    # build httpstan in order to run Sphinx.
-    sys.modules["httpstan.compile"] = unittest.mock.MagicMock()
-    sys.modules["httpstan.callbacks_writer_pb2"] = unittest.mock.MagicMock()
-
-    from httpstan import openapi
-
-    with open(output_path, "w") as fh:
-        fh.write(openapi.openapi_spec().to_yaml())
-    print("done.")
-
-
-def setup(app: Any) -> None:
-    app.connect("builder-inited", make_openapi_spec)
 
 
 ################################################################################
@@ -78,8 +42,5 @@ def setup(app: Any) -> None:
 # on_rtd is whether we are on readthedocs.org
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    import sphinx_rtd_theme
-
+if not on_rtd:
     html_theme = "sphinx_rtd_theme"
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]

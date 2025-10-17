@@ -33,7 +33,7 @@ include = [
 python = ">=3.11,<3.14"
 setuptools = ">=70"
 aiohttp = "^3.13"
-appdirs = "^1.4"
+platformdirs = "^4.5"
 webargs = "^8.7"
 marshmallow = "^3.22"
 numpy = ">=1.19"

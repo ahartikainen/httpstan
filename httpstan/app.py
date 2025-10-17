@@ -29,7 +29,7 @@ async def _warn_unfinished_operations(app: web.Application) -> None:
     operations: dict[str, dict[str, Any]] = app.get("operations", {})
     for name, operation in operations.items():
         if not operation["done"]:
-            logger.critical(f"Operation `%s` cancelled before finishing.", name)
+            logger.critical("Operation `%s` cancelled before finishing.", name)
 
 
 def make_app() -> web.Application:

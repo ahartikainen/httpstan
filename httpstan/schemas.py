@@ -69,7 +69,7 @@ class Data(marshmallow.Schema):
         """
         assert not many and not partial, "Use of `many` and `partial` with schema unsupported."
 
-        def is_nested_list_of_numbers(value: typing.Any) -> bool:
+        def is_nested_list_of_numbers(value: Any) -> bool:
             if not isinstance(value, list):
                 return False
             return all(isinstance(val, numbers.Number) or is_nested_list_of_numbers(val) for val in value)

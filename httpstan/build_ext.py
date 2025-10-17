@@ -3,6 +3,7 @@
 The customization of build_ext here is non-standard and confusing.
 It does, however, work.
 """
+
 import io
 import logging
 import os

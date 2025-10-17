@@ -2,6 +2,7 @@
 
 Routes for the HTTP server are defined here.
 """
+
 from aiohttp import web
 
 import httpstan.views as views

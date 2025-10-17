@@ -3,6 +3,7 @@
 Handlers are separated from the endpoint names. Endpoints are defined in
 `httpstan.routes`.
 """
+
 import asyncio
 import functools
 import gzip
@@ -10,8 +11,8 @@ import http
 import logging
 import re
 import traceback
-from typing import Any
 from collections.abc import Sequence
+from typing import Any
 
 from aiohttp import web
 from webargs.aiohttpparser import parser

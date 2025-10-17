@@ -5,6 +5,7 @@ they do they will likely encounter an ``ImportError`` due to the fact that they
 have not installed ``apispec``.
 
 """
+
 from typing import Any
 
 from apispec import APISpec, BasePlugin
@@ -21,12 +22,7 @@ except AttributeError:
 
 
 class DocPlugin(BasePlugin):
-    def operation_helper(
-            self, 
-            path: str | None, 
-            operations: dict[str, Any], 
-            **kwargs: Any
-        ) -> None:  # type: ignore
+    def operation_helper(self, path: str | None, operations: dict[str, Any], **kwargs: Any) -> None:  # type: ignore
         """Operation helper that parses docstrings for operations. Adds a
         ``func`` parameter to `apispec.APISpec.path`.
         """

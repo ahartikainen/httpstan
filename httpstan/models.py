@@ -4,6 +4,7 @@ These functions manage the process of compiling a Python extension module
 from C++ code generated and loading the resulting module.
 
 """
+
 import asyncio
 import base64
 import hashlib
@@ -166,7 +167,5 @@ async def build_services_extension_module(program_code: str, extra_compile_args:
     build_lib = str(model_directory_path)
 
     # Building the model takes a long time. Run in a different thread.
-    compiler_output = await asyncio.to_thread(
-        httpstan.build_ext.run_build_ext, extensions, build_lib
-    )
+    compiler_output = await asyncio.to_thread(httpstan.build_ext.run_build_ext, extensions, build_lib)
     return compiler_output

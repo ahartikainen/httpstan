@@ -3,12 +3,14 @@
 ``python3 -m httpstan`` starts a server listening on ``127.0.0.1:8080``.
 
 """
+
 import argparse
 import logging
 
 from aiohttp import web
 
 import httpstan.app
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Launch httpstan HTTP server.")
@@ -19,12 +21,13 @@ def main() -> None:
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
-    
+
     app = httpstan.app.make_app()
     try:
         web.run_app(app, host=args.host, port=args.port)
     except KeyboardInterrupt:
         print("\nServer stopped by user.")
+
 
 if __name__ == "__main__":
     main()

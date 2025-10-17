@@ -65,7 +65,7 @@ known_local_folder = "helpers"
 skip_glob = ['httpstan/include/*']
 
 [tool.pytest]
-asyncio_mode = auto
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 branch = true

@@ -14,5 +14,5 @@ sphinxcontrib-openapi~=0.8.4
 sphinxcontrib-redoc~=1.6
 
 # required for building OpenAPI spec
-apispec[yaml]~=6.8
+apispec[yaml,marshmallow]~=6.8
 marshmallow~=3.22  # needed for apidocs

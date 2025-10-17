@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import unittest.mock
+from typing import Any
 
 sys.path.insert(0, os.path.abspath(".."))
 import httpstan
@@ -49,7 +50,7 @@ autoapi_ignore = [
 ################################################################################
 
 
-def make_openapi_spec(_):
+def make_openapi_spec(_: Any) -> None:
     print("conf.py: Generating openapi spec... ", end="")
     source_dir = os.path.dirname(os.path.realpath(__file__))
     output_path = os.path.join(source_dir, "openapi.yaml")
@@ -66,7 +67,7 @@ def make_openapi_spec(_):
     print("done.")
 
 
-def setup(app):
+def setup(app: Any) -> None:
     app.connect("builder-inited", make_openapi_spec)
 
 

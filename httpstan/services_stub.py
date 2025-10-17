@@ -42,7 +42,7 @@ logger = logging.getLogger("httpstan")
 # because `pickle` (used by ProcessPoolExecutor) cannot pickle local functions.
 def _make_lazy_function_wrapper_helper(
     function_basename: str, model_name: str, *args: Any, **kwargs: Any
-) -> Callable[[bytes], Any]:  # pragma: no cover
+) -> Callable[[str], Any]:  # pragma: no cover
     services_module = httpstan.models.import_services_extension_module(model_name)
     function = getattr(services_module, function_basename + "_wrapper")
     return function(*args, **kwargs)  # type: ignore
@@ -50,7 +50,7 @@ def _make_lazy_function_wrapper_helper(
 
 # In order to avoid problems with the ProcessPoolExecutor, the module
 # needs to be loaded inside the spawned process, not before.
-def _make_lazy_function_wrapper(function_basename: str, model_name: str) -> Callable[[bytes], Any]:
+def _make_lazy_function_wrapper(function_basename: str, model_name: str) -> Callable[[str], Any]:
     # function_basename will be something like "hmc_nuts_diag_e"
     # function_wrapper will refer to a function like "hmc_nuts_diag_e_wrapper"
     return functools.partial(_make_lazy_function_wrapper_helper, function_basename, model_name)
@@ -60,7 +60,7 @@ async def call(
     function_name: str,
     model_name: str,
     fit_name: str,
-    logger_callback: Callable[[bytes], Any] | None = None,
+    logger_callback: Callable[[str], Any] | None = None,
     **kwargs: dict,
 ) -> None:
     """Call stan::services function.

@@ -5,7 +5,7 @@ import numpy as np
 
 def _split_data(
     data: dict,
-) -> tuple[list[str], list[float], list[tuple[int, ...]], list[str], list[int], list[tuple[int, ...]]]:
+) -> tuple[list[bytes], list[float], list[tuple[int, ...]], list[bytes], list[int], list[tuple[int, ...]]]:
     """Prepare data for use in an array_var_context constructor.
 
     array_var_context is a C++ class defined in Stan. See

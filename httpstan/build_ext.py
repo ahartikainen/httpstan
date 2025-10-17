@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 import tempfile
-from typing import IO, Any
+from typing import IO, Any, TextIO
 
 import setuptools
 import setuptools.command.build_ext as build_ext
@@ -28,7 +28,7 @@ def run_build_ext(extensions: list[setuptools.Extension], build_lib: str) -> str
     """
 
     # utility functions for silencing compiler output
-    def _has_fileno(stream: io.TextIOBase) -> bool:
+    def _has_fileno(stream: TextIO) -> bool:
         """Returns whether the stream object has a working fileno()
 
         Suggests whether _redirect_stderr is likely to work.

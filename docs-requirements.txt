@@ -3,16 +3,14 @@
 # these are placed here (rather than in pyproject.toml) because we want to be able
 # to build the documentation without installing the package (which is time-consuming)
 
-aiohttp~=3.6
-webargs~=5.5
+aiohttp~=3.13
+webargs~=8.7
 appdirs~=1.4
 
-sphinx~=7.2 # BSD
-sphinx-autoapi~=3.0.0
-sphinx-rtd-theme~=2.0.0
-sphinxcontrib-openapi~=0.8.4
-sphinxcontrib-redoc~=1.6
+sphinx~=8.2 # BSD
+sphinx-autoapi~=3.6.0
+sphinx-rtd-theme~=3.0.2
 
 # required for building OpenAPI spec
-apispec[yaml]~=6.0
-marshmallow~=3.10  # needed for apidocs
+apispec[yaml,marshmallow]~=6.8
+marshmallow~=3.22  # needed for apidocs

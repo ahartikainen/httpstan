@@ -4,18 +4,17 @@ These functions manage the process of compiling a Python extension module
 from C++ code generated and loading the resulting module.
 
 """
+
 import asyncio
 import base64
 import hashlib
-import importlib
-import importlib.resources
+import importlib.util
 import logging
 import platform
 import sys
 from importlib.machinery import EXTENSION_SUFFIXES
 from pathlib import Path
 from types import ModuleType
-from typing import List, Optional, Tuple
 
 import setuptools
 
@@ -50,18 +49,18 @@ def calculate_model_name(program_code: str) -> str:
     # digest_size of 5 means we expect a collision after a million models
     digest_size = 5
     hash = hashlib.blake2b(digest_size=digest_size)
-    hash.update(program_code.encode())
+    hash.update(program_code.encode("utf-8"))
 
     # system identifiers
-    hash.update(httpstan.__version__.encode())
-    hash.update(sys.platform.encode())
-    hash.update(str(sys.maxsize).encode())
-    hash.update(sys.version.encode())
+    hash.update(httpstan.__version__.encode("utf-8"))
+    hash.update(sys.platform.encode("utf-8"))
+    hash.update(str(sys.maxsize).encode("utf-8"))
+    hash.update(sys.version.encode("utf-8"))
     # include sys.executable in hash to account for different `venv`s
-    hash.update(sys.executable.encode())
+    hash.update(sys.executable.encode("utf-8"))
 
-    id = base64.b32encode(hash.digest()).decode().lower()
-    return f"models/{id}"
+    model_id = base64.b32encode(hash.digest()).decode().lower()
+    return f"models/{model_id}"
 
 
 def import_services_extension_module(model_name: str) -> ModuleType:
@@ -79,7 +78,7 @@ def import_services_extension_module(model_name: str) -> ModuleType:
     """
     model_directory = httpstan.cache.model_directory(model_name)
     try:
-        module_path = next(filter(lambda p: p.suffix in EXTENSION_SUFFIXES, model_directory.iterdir()))
+        module_path = next(p for p in model_directory.iterdir() if p.suffix in EXTENSION_SUFFIXES)
     except (FileNotFoundError, StopIteration):
         raise KeyError(f"No module for `{model_name}` found in `{model_directory}`")
     # The module name, which is independent of the filename, is always "stan_services". The module
@@ -93,7 +92,7 @@ def import_services_extension_module(model_name: str) -> ModuleType:
     return module
 
 
-async def build_services_extension_module(program_code: str, extra_compile_args: Optional[List[str]] = None) -> str:
+async def build_services_extension_module(program_code: str, extra_compile_args: list[str] | None = None) -> str:
     """Compile a model-specific stan::services extension module.
 
     Since compiling an extension module takes a long time, compilation takes
@@ -120,15 +119,14 @@ async def build_services_extension_module(program_code: str, extra_compile_args:
     stan_model_name = f"model_{model_name.split('/')[1]}"
     cpp_code, _ = httpstan.compile.compile(program_code, stan_model_name)
     cpp_code_path = model_directory_path / f"{stan_model_name}.cpp"
-    with cpp_code_path.open("w") as fh:
-        fh.write(cpp_code)
+    cpp_code_path.write_text(cpp_code, encoding="utf-8")
 
     include_dirs = [
         str(model_directory_path),
         str(PACKAGE_DIR / "include"),
     ]
 
-    stan_macros: List[Tuple[str, Optional[str]]] = [
+    stan_macros: list[tuple[str, str | None]] = [
         ("BOOST_DISABLE_ASSERTS", None),
         ("BOOST_PHOENIX_NO_VARIADIC_EXPRESSION", None),
         ("STAN_THREADS", None),
@@ -169,7 +167,5 @@ async def build_services_extension_module(program_code: str, extra_compile_args:
     build_lib = str(model_directory_path)
 
     # Building the model takes a long time. Run in a different thread.
-    compiler_output = await asyncio.get_running_loop().run_in_executor(
-        None, httpstan.build_ext.run_build_ext, extensions, build_lib
-    )
+    compiler_output = await asyncio.to_thread(httpstan.build_ext.run_build_ext, extensions, build_lib)
     return compiler_output

@@ -2,12 +2,13 @@
 
 Routes for the HTTP server are defined here.
 """
-import aiohttp.web
+
+from aiohttp import web
 
 import httpstan.views as views
 
 
-def setup_routes(app: aiohttp.web.Application) -> None:
+def setup_routes(app: web.Application) -> None:
     """Add routes to Application.
 
     Arguments:

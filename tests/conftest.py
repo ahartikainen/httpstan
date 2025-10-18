@@ -1,13 +1,14 @@
 """pytest configuration for all tests."""
+
 import typing
 
 import aiohttp.web
-import pytest
+import pytest_asyncio
 
 import httpstan.app
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def server_host_port_pair(
     unused_tcp_port: int,
 ) -> typing.AsyncGenerator[typing.Tuple[str, int], None]:
@@ -25,7 +26,7 @@ async def server_host_port_pair(
     await runner.cleanup()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def api_url(server_host_port_pair: typing.Tuple[str, int]) -> str:
     host, port = server_host_port_pair
     return f"http://{host}:{port}/v1"

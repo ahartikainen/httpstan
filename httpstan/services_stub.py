@@ -6,6 +6,7 @@ stan::services function is routed from stan::callbacks writers into Python via a
 Unix domain socket.
 
 """
+
 import asyncio
 import collections
 import concurrent.futures
@@ -18,8 +19,8 @@ import select
 import signal
 import socket
 import tempfile
-import typing
 import zlib
+from typing import Any, Callable, cast
 
 import httpstan.cache
 import httpstan.models
@@ -40,8 +41,8 @@ logger = logging.getLogger("httpstan")
 # This function belongs inside `_make_lazy_function_wrapper`. It is defined here
 # because `pickle` (used by ProcessPoolExecutor) cannot pickle local functions.
 def _make_lazy_function_wrapper_helper(
-    function_basename: str, model_name: str, *args: typing.Any, **kwargs: typing.Any
-) -> typing.Callable:  # pragma: no cover
+    function_basename: str, model_name: str, *args: Any, **kwargs: Any
+) -> Callable[[str], Any]:  # pragma: no cover
     services_module = httpstan.models.import_services_extension_module(model_name)
     function = getattr(services_module, function_basename + "_wrapper")
     return function(*args, **kwargs)  # type: ignore
@@ -49,7 +50,7 @@ def _make_lazy_function_wrapper_helper(
 
 # In order to avoid problems with the ProcessPoolExecutor, the module
 # needs to be loaded inside the spawned process, not before.
-def _make_lazy_function_wrapper(function_basename: str, model_name: str) -> typing.Callable:
+def _make_lazy_function_wrapper(function_basename: str, model_name: str) -> Callable[[str], Any]:
     # function_basename will be something like "hmc_nuts_diag_e"
     # function_wrapper will refer to a function like "hmc_nuts_diag_e_wrapper"
     return functools.partial(_make_lazy_function_wrapper_helper, function_basename, model_name)
@@ -59,7 +60,7 @@ async def call(
     function_name: str,
     model_name: str,
     fit_name: str,
-    logger_callback: typing.Optional[typing.Callable] = None,
+    logger_callback: Callable[[str], Any] | None = None,
     **kwargs: dict,
 ) -> None:
     """Call stan::services function.
@@ -90,7 +91,7 @@ async def call(
     # `stan::services::hmc_nuts_diag_e_adapt`).
     for arg in function_arguments:
         if arg not in kwargs:
-            kwargs[arg] = typing.cast(typing.Any, arguments.lookup_default(arguments.Method[method.upper()], arg))
+            kwargs[arg] = cast(Any, arguments.lookup_default(arguments.Method[method.upper()], arg))
 
     with socket.socket(socket.AF_UNIX, type=socket.SOCK_STREAM) as socket_:
         temp_fd, socket_filename = tempfile.mkstemp(prefix="httpstan_", suffix=".sock")
@@ -111,9 +112,9 @@ async def call(
         else:
             future = asyncio.get_running_loop().run_in_executor(executor, lazy_function_wrapper_partial)  # type: ignore
 
-        messages_files: typing.Mapping[socket.socket, io.BytesIO] = collections.defaultdict(io.BytesIO)
+        messages_files: dict[socket.socket, io.BytesIO] = collections.defaultdict(io.BytesIO)
         # using a wbits value which makes things compatible with gzip
-        messages_compressobjs: typing.Mapping[socket.socket, zlib._Compress] = collections.defaultdict(
+        messages_compressobjs: dict[socket.socket, zlib._Compress] = collections.defaultdict(
             functools.partial(zlib.compressobj, level=zlib.Z_BEST_SPEED, wbits=zlib.MAX_WBITS | 16)
         )
         potential_readers = [socket_]

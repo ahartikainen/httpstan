@@ -1,13 +1,11 @@
 """Miscellaneous helper routines."""
-from typing import Tuple  # noqa: flake8 bug, #118
-from typing import List
 
 import numpy as np
 
 
 def _split_data(
     data: dict,
-) -> Tuple[List[str], List[float], List[Tuple[int, ...]], List[str], List[int], List[Tuple[int, ...]]]:
+) -> tuple[list[bytes], list[float], list[tuple[int, ...]], list[bytes], list[int], list[tuple[int, ...]]]:
     """Prepare data for use in an array_var_context constructor.
 
     array_var_context is a C++ class defined in Stan. See
@@ -36,13 +34,13 @@ def _split_data(
     """
     data = data.copy()
 
-    names_r: List[str] = []
-    values_r: List[float] = []
-    dim_r: List[Tuple[int, ...]] = []
+    names_r: list[bytes] = []
+    values_r: list[float] = []
+    dim_r: list[tuple[int, ...]] = []
 
-    names_i: List[str] = []
-    values_i: List[int] = []
-    dim_i: List[Tuple[int, ...]] = []
+    names_i: list[bytes] = []
+    values_i: list[int] = []
+    dim_i: list[tuple[int, ...]] = []
 
     for k, v in data.items():
         if np.issubdtype(np.asarray(v).dtype, np.floating):

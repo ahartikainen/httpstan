@@ -2,23 +2,22 @@
 
 The customization of build_ext here is non-standard and confusing.
 It does, however, work.
-
-isort:skip_file
 """
 
-import setuptools
-import setuptools.command.build_ext as build_ext
 import io
 import logging
 import os
 import sys
 import tempfile
-from typing import IO, Any, List, TextIO
+from typing import IO, Any, TextIO
+
+import setuptools
+import setuptools.command.build_ext as build_ext
 
 from httpstan.config import HTTPSTAN_DEBUG
 
 
-def run_build_ext(extensions: List[setuptools.Extension], build_lib: str) -> str:
+def run_build_ext(extensions: list[setuptools.Extension], build_lib: str) -> str:
     """Configure and call `build_ext.run()`, capturing stderr.
 
     Compiled extension module will be placed in `build_lib`.
@@ -36,7 +35,7 @@ def run_build_ext(extensions: List[setuptools.Extension], build_lib: str) -> str
         """
         try:
             stream.fileno()
-        except (AttributeError, OSError, IOError, io.UnsupportedOperation):  # pragma: no cover
+        except (AttributeError, OSError, io.UnsupportedOperation):  # pragma: no cover
             return False
         return True
 
@@ -64,7 +63,7 @@ def run_build_ext(extensions: List[setuptools.Extension], build_lib: str) -> str
     build_extension.build_lib = build_lib
 
     # silence stderr for compilation, if stderr is silenceable
-    stream = tempfile.TemporaryFile(prefix="httpstan_")
+    stream = tempfile.TemporaryFile(mode="w+b", prefix="httpstan_")
     redirect_stderr = _has_fileno(sys.stderr) and not HTTPSTAN_DEBUG
     compiler_output = ""
     if redirect_stderr:
@@ -87,9 +86,10 @@ def run_build_ext(extensions: List[setuptools.Extension], build_lib: str) -> str
     finally:
         if redirect_stderr:
             stream.seek(0)
-            compiler_output = stream.read().decode()
+            compiler_output = stream.read().decode(errors="replace")
             stream.close()
             # restore
             os.dup2(orig_stderr, sys.stderr.fileno())
+            os.close(orig_stderr)
 
     return compiler_output

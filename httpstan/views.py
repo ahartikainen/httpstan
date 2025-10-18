@@ -3,6 +3,7 @@
 Handlers are separated from the endpoint names. Endpoints are defined in
 `httpstan.routes`.
 """
+
 import asyncio
 import functools
 import gzip
@@ -10,10 +11,11 @@ import http
 import logging
 import re
 import traceback
-from typing import Optional, Sequence, cast
+from collections.abc import Sequence
+from typing import Any
 
-import aiohttp.web
-import webargs.aiohttpparser
+from aiohttp import web
+from webargs.aiohttpparser import parser
 
 import httpstan.cache
 import httpstan.fits
@@ -28,14 +30,14 @@ logger = logging.getLogger("httpstan")
 iteration_info_re = re.compile(rb"Iteration:\s+\d+ / \d+ \[\s*\d+%\]\s+\(\w+\)")
 
 
-def _make_error(message: str, status: int, details: Optional[Sequence] = None) -> dict:
-    status_dict = {"code": status, "status": http.HTTPStatus(status).phrase, "message": message}
+def _make_error(message: str, status: int, details: Sequence | None = None) -> dict:
+    status_dict: dict[str, Any] = {"code": status, "status": http.HTTPStatus(status).phrase, "message": message}
     if details is not None:
         status_dict["details"] = details
-    return cast(dict, schemas.Status().load(status_dict))
+    return schemas.Status().load(status_dict)
 
 
-async def handle_health(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_health(request: web.Request) -> web.Response:
     """Return 200 OK.
 
     ---
@@ -45,10 +47,10 @@ async def handle_health(request: aiohttp.web.Request) -> aiohttp.web.Response:
         "200":
           description: OK
     """
-    return aiohttp.web.Response(text="httpstan is running.")
+    return web.Response(text="httpstan is running.")
 
 
-async def handle_create_model(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_create_model(request: web.Request) -> web.Response:
     """Compile Stan model.
 
     ---
@@ -73,9 +75,9 @@ async def handle_create_model(request: aiohttp.web.Request) -> aiohttp.web.Respo
           schema: Status
 
     """
-    args = cast(dict, await webargs.aiohttpparser.parser.parse(schemas.CreateModelRequest(), request))
+    args: dict[str, Any] = await parser.parse(schemas.CreateModelRequest(), request)
 
-    program_code = args["program_code"]
+    program_code: str = args["program_code"]
     model_name = httpstan.models.calculate_model_name(program_code)
 
     # check if extension module is present in cache
@@ -90,7 +92,7 @@ async def handle_create_model(request: aiohttp.web.Request) -> aiohttp.web.Respo
         response_dict = schemas.Model().load(
             {"name": model_name, "compiler_output": compiler_output, "stanc_warnings": stanc_warnings}
         )
-        return aiohttp.web.json_response(response_dict, status=201)
+        return web.json_response(response_dict, status=201)
 
     # extension module is not in cache
 
@@ -104,7 +106,7 @@ async def handle_create_model(request: aiohttp.web.Request) -> aiohttp.web.Respo
     except ValueError as exc:
         message, status = f"Exception while compiling `program_code`: `{repr(exc)}`", 400
         logger.critical(message)
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
     httpstan.cache.dump_stanc_warnings(stanc_warnings, model_name)
 
     # no fatal stanc errors, continue
@@ -118,15 +120,15 @@ async def handle_create_model(request: aiohttp.web.Request) -> aiohttp.web.Respo
             400,
         )
         logger.critical(message)
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
     httpstan.cache.dump_services_extension_module_compiler_output(compiler_output, model_name)
     response_dict = schemas.Model().load(
         {"name": model_name, "compiler_output": compiler_output, "stanc_warnings": stanc_warnings}
     )
-    return aiohttp.web.json_response(response_dict, status=201)
+    return web.json_response(response_dict, status=201)
 
 
-async def handle_list_models(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_list_models(request: web.Request) -> web.Response:
     """List cached models.
 
     ---
@@ -155,10 +157,10 @@ async def handle_list_models(request: aiohttp.web.Request) -> aiohttp.web.Respon
                 {"name": model_name, "compiler_output": compiler_output, "stanc_warnings": stanc_warnings}
             )
         )
-    return aiohttp.web.json_response({"models": models}, status=200)
+    return web.json_response({"models": models}, status=200)
 
 
-async def handle_delete_model(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_delete_model(request: web.Request) -> web.Response:
     """Delete a model and any associated fits.
 
     Delete a model which has been saved in the cache. Any fits associated
@@ -190,15 +192,15 @@ async def handle_delete_model(request: aiohttp.web.Request) -> aiohttp.web.Respo
         httpstan.models.import_services_extension_module(model_name)
     except KeyError:  # pragma: no cover
         message, status = f"Model `{model_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
 
     # delete the directory in which the model and fits are stored
     httpstan.cache.delete_model_directory(model_name)
 
-    return aiohttp.web.Response(text="OK")
+    return web.Response(text="OK")
 
 
-async def handle_show_params(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_show_params(request: web.Request) -> web.Response:
     """Show parameter names and dimensions.
 
     Data must be provided as model parameters can and frequently do
@@ -245,7 +247,7 @@ async def handle_show_params(request: aiohttp.web.Request) -> aiohttp.web.Respon
           schema: Status
 
     """
-    args = cast(dict, await webargs.aiohttpparser.parser.parse(schemas.ShowParamsRequest(), request))
+    args: dict[str, Any] = await parser.parse(schemas.ShowParamsRequest(), request)
     model_name = f'models/{request.match_info["model_id"]}'
     data = args["data"]
 
@@ -253,7 +255,7 @@ async def handle_show_params(request: aiohttp.web.Request) -> aiohttp.web.Respon
         services_module = httpstan.models.import_services_extension_module(model_name)
     except KeyError:  # pragma: no cover
         message, status = f"Model `{model_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
 
     # ``get_param_names`` and ``get_dims`` are defined in ``stan_services.cpp``.
     # Apart from converting C++ types into corresponding Python types, they do no processing of the
@@ -266,17 +268,17 @@ async def handle_show_params(request: aiohttp.web.Request) -> aiohttp.web.Respon
         # e.g., "N is -5, but must be greater than or equal to 0"
         message, status = f"Error calling get_param_names: `{exc}`", 400
         logger.critical(message)
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
     dims = services_module.get_dims(data)  # type: ignore
     constrained_param_names = services_module.constrained_param_names(data)  # type: ignore
     params = []
     for name, dims_ in zip(param_names, dims):
         constrained_names = tuple(filter(lambda s: re.match(rf"^{name}\.\S+|^{name}\Z", s), constrained_param_names))
         params.append(schemas.Parameter().load({"name": name, "dims": dims_, "constrained_names": constrained_names}))
-    return aiohttp.web.json_response({"name": model_name, "params": params})
+    return web.json_response({"name": model_name, "params": params})
 
 
-async def handle_create_fit(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_create_fit(request: web.Request) -> web.Response:
     """Call function defined in stan::services.
 
     A request to this endpoint starts a long-running operation. Users can
@@ -336,13 +338,13 @@ async def handle_create_fit(request: aiohttp.web.Request) -> aiohttp.web.Respons
           schema: Status
     """
     model_name = f'models/{request.match_info["model_id"]}'
-    args = cast(dict, await webargs.aiohttpparser.parser.parse(schemas.CreateFitRequest(), request))
+    args: dict[str, Any] = await parser.parse(schemas.CreateFitRequest(), request)
 
     try:
         httpstan.models.import_services_extension_module(model_name)
     except KeyError:  # pragma: no cover
         message, status = f"Model `{model_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
 
     function = args.pop("function")
     name = httpstan.fits.calculate_fit_name(function, model_name, args)
@@ -362,7 +364,7 @@ async def handle_create_fit(request: aiohttp.web.Request) -> aiohttp.web.Respons
             }
         )
         request.app["operations"][operation_name] = operation_dict
-        return aiohttp.web.json_response(operation_dict, status=201)
+        return web.json_response(operation_dict, status=201)
 
     def _services_call_done(operation: dict, future: asyncio.Future) -> None:
         """Called when services call (i.e., an operation) is done.
@@ -421,10 +423,10 @@ async def handle_create_fit(request: aiohttp.web.Request) -> aiohttp.web.Respons
     )
     task.add_done_callback(functools.partial(_services_call_done, operation_dict))
     request.app["operations"][operation_name] = operation_dict
-    return aiohttp.web.json_response(operation_dict, status=201)
+    return web.json_response(operation_dict, status=201)
 
 
-async def handle_get_fit(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_get_fit(request: web.Request) -> web.Response:
     """Get result of a call to a function defined in stan::services.
 
     ---
@@ -460,13 +462,13 @@ async def handle_get_fit(request: aiohttp.web.Request) -> aiohttp.web.Response:
         fit_bytes_gz = httpstan.cache.load_fit(fit_name)
     except KeyError:  # pragma: no cover
         message, status = f"Fit `{fit_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
     fit_bytes = gzip.decompress(fit_bytes_gz)
     assert isinstance(fit_bytes, bytes)
-    return aiohttp.web.Response(body=fit_bytes, content_type="text/plain", charset="utf-8")
+    return web.Response(body=fit_bytes, content_type="text/plain", charset="utf-8")
 
 
-async def handle_delete_fit(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_delete_fit(request: web.Request) -> web.Response:
     """Delete a fit.
 
     Delete a fit which has been saved in the cache.
@@ -502,14 +504,14 @@ async def handle_delete_fit(request: aiohttp.web.Request) -> aiohttp.web.Respons
         httpstan.cache.load_fit(fit_name)
     except KeyError:  # pragma: no cover
         message, status = f"Fit `{fit_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
 
     httpstan.cache.delete_fit(fit_name)
 
-    return aiohttp.web.Response(text="OK")
+    return web.Response(text="OK")
 
 
-async def handle_get_operation(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_get_operation(request: web.Request) -> web.Response:
     """Get Operation.
 
     Details about an Operation include whether or not the operation is `done` and
@@ -561,11 +563,11 @@ async def handle_get_operation(request: aiohttp.web.Request) -> aiohttp.web.Resp
         operation = request.app["operations"][operation_name]
     except KeyError:  # pragma: no cover
         message, status = f"Operation `{operation_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
-    return aiohttp.web.json_response(operation)
+        return web.json_response(_make_error(message, status=status), status=status)
+    return web.json_response(operation)
 
 
-async def handle_log_prob(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_log_prob(request: web.Request) -> web.Response:
     """Calculate the log probability.
 
     ---
@@ -620,7 +622,7 @@ async def handle_log_prob(request: aiohttp.web.Request) -> aiohttp.web.Response:
           description: Model not found.
           schema: Status
     """
-    args = cast(dict, await webargs.aiohttpparser.parser.parse(schemas.ShowLogProbRequest(), request))
+    args: dict[str, Any] = await parser.parse(schemas.ShowLogProbRequest(), request)
     model_name = f'models/{request.match_info["model_id"]}'
     data = args["data"]
     unconstrained_parameters = args["unconstrained_parameters"]
@@ -630,18 +632,18 @@ async def handle_log_prob(request: aiohttp.web.Request) -> aiohttp.web.Response:
         services_module = httpstan.models.import_services_extension_module(model_name)
     except KeyError:
         message, status = f"Model `{model_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
 
     try:
         lp = services_module.log_prob(data, unconstrained_parameters, adjust_transform)  # type: ignore
     except Exception as exc:
         message, status = f"Error calling log_prob: `{exc}`", 400
         logger.critical(message)
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
-    return aiohttp.web.json_response({"log_prob": lp}, status=200)
+        return web.json_response(_make_error(message, status=status), status=status)
+    return web.json_response({"log_prob": lp}, status=200)
 
 
-async def handle_log_prob_grad(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_log_prob_grad(request: web.Request) -> web.Response:
     """Calculate the gradient of the log posterior evaluated at the unconstrained parameters.
 
     ---
@@ -698,7 +700,7 @@ async def handle_log_prob_grad(request: aiohttp.web.Request) -> aiohttp.web.Resp
           description: Model not found.
           schema: Status
     """
-    args = cast(dict, await webargs.aiohttpparser.parser.parse(schemas.ShowLogProbGradRequest(), request))
+    args: dict[str, Any] = await parser.parse(schemas.ShowLogProbGradRequest(), request)
     model_name = f'models/{request.match_info["model_id"]}'
     data = args["data"]
     unconstrained_parameters = args["unconstrained_parameters"]
@@ -708,18 +710,18 @@ async def handle_log_prob_grad(request: aiohttp.web.Request) -> aiohttp.web.Resp
         services_module = httpstan.models.import_services_extension_module(model_name)
     except KeyError:
         message, status = f"Model `{model_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
 
     try:
         gradient = services_module.log_prob_grad(data, unconstrained_parameters, adjust_transform)  # type: ignore
     except Exception as exc:
         message, status = f"Error calling log_prob_grad: `{exc}`", 400
         logger.critical(message)
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
-    return aiohttp.web.json_response({"log_prob_grad": gradient}, status=200)
+        return web.json_response(_make_error(message, status=status), status=status)
+    return web.json_response({"log_prob_grad": gradient}, status=200)
 
 
-async def handle_write_array(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_write_array(request: web.Request) -> web.Response:
     """Constrain parameters.
 
     Transform a sequence of unconstrained parameters to their defined support,
@@ -791,7 +793,7 @@ async def handle_write_array(request: aiohttp.web.Request) -> aiohttp.web.Respon
           description: Model not found.
           schema: Status
     """
-    args = cast(dict, await webargs.aiohttpparser.parser.parse(schemas.ShowWriteArrayRequest(), request))
+    args: dict[str, Any] = await parser.parse(schemas.ShowWriteArrayRequest(), request)
     model_name = f'models/{request.match_info["model_id"]}'
     data = args["data"]
     unconstrained_parameters = args["unconstrained_parameters"]
@@ -802,18 +804,18 @@ async def handle_write_array(request: aiohttp.web.Request) -> aiohttp.web.Respon
         services_module = httpstan.models.import_services_extension_module(model_name)
     except KeyError:
         message, status = f"Model `{model_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
 
     try:
         params_r_constrained = services_module.write_array(data, unconstrained_parameters, include_tparams, include_gqs)  # type: ignore
     except Exception as exc:
         message, status = f"Error calling write_array: `{exc}`", 400
         logger.critical(message)
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
-    return aiohttp.web.json_response({"params_r_constrained": params_r_constrained}, status=200)
+        return web.json_response(_make_error(message, status=status), status=status)
+    return web.json_response({"params_r_constrained": params_r_constrained}, status=200)
 
 
-async def handle_transform_inits(request: aiohttp.web.Request) -> aiohttp.web.Response:
+async def handle_transform_inits(request: web.Request) -> web.Response:
     """Unconstrain parameters.
 
     Reads constrained parameter values from their specified context and returns a
@@ -867,7 +869,7 @@ async def handle_transform_inits(request: aiohttp.web.Request) -> aiohttp.web.Re
           description: Model not found.
           schema: Status
     """
-    args = cast(dict, await webargs.aiohttpparser.parser.parse(schemas.ShowTransformInitsRequest(), request))
+    args: dict[str, Any] = await parser.parse(schemas.ShowTransformInitsRequest(), request)
     model_name = f'models/{request.match_info["model_id"]}'
     data = args["data"]
     constrained_parameters = args["constrained_parameters"]
@@ -876,12 +878,12 @@ async def handle_transform_inits(request: aiohttp.web.Request) -> aiohttp.web.Re
         services_module = httpstan.models.import_services_extension_module(model_name)
     except KeyError:
         message, status = f"Model `{model_name}` not found.", 404
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
+        return web.json_response(_make_error(message, status=status), status=status)
 
     try:
         params_r_unconstrained = services_module.transform_inits(data, constrained_parameters)  # type: ignore
     except Exception as exc:
         message, status = f"Error calling write_array: `{exc}`", 400
         logger.critical(message)
-        return aiohttp.web.json_response(_make_error(message, status=status), status=status)
-    return aiohttp.web.json_response({"params_r_unconstrained": params_r_unconstrained}, status=200)
+        return web.json_response(_make_error(message, status=status), status=status)
+    return web.json_response({"params_r_unconstrained": params_r_unconstrained}, status=200)

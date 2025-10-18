@@ -1,9 +1,8 @@
 import numbers
-import typing
+from typing import Any
 
 import marshmallow
-import marshmallow.fields as fields
-import marshmallow.validate as validate
+from marshmallow import fields, validate
 
 
 class Operation(marshmallow.Schema):
@@ -21,7 +20,7 @@ class Operation(marshmallow.Schema):
     result = fields.Dict()
 
     @marshmallow.validates_schema
-    def validate_result(self, data: dict, many: bool, partial: bool) -> None:
+    def validate_result(self, data: dict[str, Any], many: bool, partial: bool) -> None:
         assert not many and not partial, "Use of `many` and `partial` with schema unsupported."
         if data["done"] and data.get("result") is None:  # pragma: no cover
             raise marshmallow.ValidationError("If `done` then `result` must be set.", "result")
@@ -62,7 +61,7 @@ class Data(marshmallow.Schema):
         unknown = marshmallow.INCLUDE
 
     @marshmallow.validates_schema
-    def validate_stan_values(self, data: dict, many: bool, partial: bool) -> None:
+    def validate_stan_values(self, data: dict[str, Any], many: bool, partial: bool) -> None:
         """Verify ``data`` dictionary will work for Stan.
 
         Keys should be strings, values must be numbers or (nested) lists of numbers.
@@ -70,7 +69,7 @@ class Data(marshmallow.Schema):
         """
         assert not many and not partial, "Use of `many` and `partial` with schema unsupported."
 
-        def is_nested_list_of_numbers(value: typing.Any) -> bool:
+        def is_nested_list_of_numbers(value: Any) -> bool:
             if not isinstance(value, list):
                 return False
             return all(isinstance(val, numbers.Number) or is_nested_list_of_numbers(val) for val in value)
@@ -99,23 +98,23 @@ class CreateFitRequest(marshmallow.Schema):
             ["stan::services::sample::hmc_nuts_diag_e_adapt", "stan::services::sample::fixed_param"]
         ),
     )
-    data = fields.Nested(Data(), missing={})
-    init = fields.Nested(Data(), missing={})
+    data = fields.Nested(Data(), load_default={})
+    init = fields.Nested(Data(), load_default={})
     random_seed = fields.Integer(validate=validate.Range(min=0))
     chain = fields.Integer(validate=validate.Range(min=0))
-    init_radius = fields.Number()
+    init_radius = fields.Float()
     num_warmup = fields.Integer(validate=validate.Range(min=0))
     num_samples = fields.Integer(validate=validate.Range(min=0))
     num_thin = fields.Integer(validate=validate.Range(min=0))
     save_warmup = fields.Boolean()
     refresh = fields.Integer(validate=validate.Range(min=0))
-    stepsize = fields.Number()
-    stepsize_jitter = fields.Number()
+    stepsize = fields.Float()
+    stepsize_jitter = fields.Float()
     max_depth = fields.Integer(validate=validate.Range(min=0))
-    delta = fields.Number()
-    gamma = fields.Number()
-    kappa = fields.Number()
-    t0 = fields.Number()
+    delta = fields.Float()
+    gamma = fields.Float()
+    kappa = fields.Float()
+    t0 = fields.Float()
     init_buffer = fields.Integer(validate=validate.Range(min=0))
     term_buffer = fields.Integer(validate=validate.Range(min=0))
     window = fields.Integer(validate=validate.Range(min=0))
@@ -127,7 +126,7 @@ class Fit(marshmallow.Schema):
 
 
 class ShowParamsRequest(marshmallow.Schema):
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(Data(), load_default={})
 
 
 class Parameter(marshmallow.Schema):  # noqa
@@ -191,30 +190,30 @@ class WriterMessage(marshmallow.Schema):
 class ShowLogProbRequest(marshmallow.Schema):
     """Schema for log_prob request."""
 
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(Data(), load_default={})
     unconstrained_parameters = fields.List(fields.Float(), required=True)
-    adjust_transform = fields.Boolean(missing=True)
+    adjust_transform = fields.Boolean(load_default=True)
 
 
 class ShowLogProbGradRequest(marshmallow.Schema):
     """Schema for log_prob_grad request."""
 
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(Data(), load_default={})
     unconstrained_parameters = fields.List(fields.Float(), required=True)
-    adjust_transform = fields.Boolean(missing=True)
+    adjust_transform = fields.Boolean(load_default=True)
 
 
 class ShowWriteArrayRequest(marshmallow.Schema):
     """Schema for write_array request."""
 
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(Data(), load_default={})
     unconstrained_parameters = fields.List(fields.Float(), required=True)
-    include_tparams = fields.Boolean(missing=True)
-    include_gqs = fields.Boolean(missing=True)
+    include_tparams = fields.Boolean(load_default=True)
+    include_gqs = fields.Boolean(load_default=True)
 
 
 class ShowTransformInitsRequest(marshmallow.Schema):
     """Schema for transform_inits request."""
 
-    data = fields.Nested(Data(), missing={})
+    data = fields.Nested(Data(), load_default={})
     constrained_parameters = fields.Nested(Data(), required=True)

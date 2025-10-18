@@ -9,7 +9,7 @@
 # this Makefile copy libraries built by the other Makefile into their
 # httpstan-specific directories.
 
-PYBIND11_VERSION := 2.9.2
+PYBIND11_VERSION := 3.0.1
 RAPIDJSON_VERSION := 1.1.0
 STAN_VERSION := 2.35.0
 STANC_VERSION := 2.35.0

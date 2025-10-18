@@ -2,13 +2,13 @@
 
 Functions in this module manage the Stan model cache and related caches.
 """
+
 import logging
 import shutil
-import typing
 from importlib.machinery import EXTENSION_SUFFIXES
 from pathlib import Path
 
-import appdirs
+from platformdirs import user_cache_dir
 
 import httpstan
 
@@ -17,7 +17,7 @@ logger = logging.getLogger("httpstan")
 
 def cache_directory() -> Path:
     """Get httpstan cache path."""
-    return Path(appdirs.user_cache_dir("httpstan", version=httpstan.__version__))
+    return Path(user_cache_dir("httpstan", version=httpstan.__version__))
 
 
 def model_directory(model_name: str) -> Path:
@@ -57,7 +57,7 @@ def load_services_extension_module_compiler_output(model_name: str) -> str:
         return fh.read()
 
 
-def list_model_names() -> typing.List[str]:
+def list_model_names() -> list[str]:
     """Return model names (e.g., `models/dyeicfn2`) for models in cache."""
     models_directory = cache_directory() / "models"
     if not models_directory.exists():

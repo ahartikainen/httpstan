@@ -243,6 +243,7 @@ def validate_wheel(wheel):
             "httpstan/include/tbb/tbb.h",
             "httpstan/include/rapidjson/document.h",
         }
+        required.add("httpstan/empty.cp312-win_amd64.pyd")
         missing = required - files
         if missing or not wheel.name.endswith("win_amd64.whl"):
             raise RuntimeError(f"Wrong wheel tag or missing wheel contents: {wheel.name}, {sorted(missing)}")

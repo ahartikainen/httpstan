@@ -23,6 +23,33 @@ sampling function will freeze up. The call will freeze up because the socket
 used to communicate from C++ to Python will fill up. If the socket runs out of
 buffer space the stan::services call will never return.
 
+On Windows debug mode runs the sampling function in a server thread so that
+callback sockets can be read concurrently.
+
+Windows builds and tests
+========================
+
+The separate ``.github/workflows/windows.yml`` builds Windows x64 wheels with
+CPython 3.12. Pushes, pull requests and manual runs execute the full suite
+with the ``official-clang``, ``official-msvc``, ``portable-clang`` and
+``portable-msvc`` profiles. The workflow sets ``HTTPSTAN_ACCEPT_MSVC_LICENSE``
+after the maintainers have accepted the applicable Microsoft terms. Optional
+variables ``HTTPSTAN_PORTABLE_MSVC_VERSION`` and
+``HTTPSTAN_PORTABLE_SDK_VERSION`` select versions (defaults: 14.44 and 26100).
+Portable Clang downloads LLVM separately. The same CI driver can be run
+locally::
+
+    python scripts\windows_ci.py --profile official-clang --through full
+
+Use a clean checkout when changing the compiler profile. Model compilation
+requires the same compiler family as the wheel. The compiler and SDK are not
+bundled. Actions publishes logs and wheels as artifacts. For failures, inspect
+``summary.txt``, ``toolchain.json`` and the first failed stage log.
+
+On Windows, callbacks use authenticated TCP loopback and workers use spawn.
+Native extensions load from process-local copies under the cache's ``loaded``
+directory; stale copies can be removed when httpstan processes have exited.
+
 Signing key
 ===========
 The signing key for httpstan is the same as for pystan.

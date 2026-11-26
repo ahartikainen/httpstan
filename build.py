@@ -1,3 +1,5 @@
+import sys
+
 from setuptools.extension import Extension
 
 # empty extension module so build machinery recognizes package as platform-specific
@@ -9,10 +11,15 @@ extensions = [
         include_dirs=["httpstan/include"],
         language="c++",
         # -fvisibility=hidden required by pybind11
-        extra_compile_args=["-fvisibility=hidden", "-std=c++17"],
+        extra_compile_args=(
+            ["/std:c++17", "/EHsc", "/Zc:__cplusplus"]
+            if sys.platform == "win32"
+            else ["-fvisibility=hidden", "-std=c++17"]
+        ),
     )
 ]
 
 
-def build(setup_kwargs):
+def build(setup_kwargs: dict) -> None:
+    """Add the extension module to the setuptools build configuration."""
     setup_kwargs.update({"ext_modules": extensions})

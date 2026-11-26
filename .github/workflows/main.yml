@@ -1,14 +1,18 @@
 name: httpstan
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   tests:
     name: httpstan tests
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-24.04, macos-15-intel]
         python-version: ["3.12"]
     steps:
       - name: Check out repository
@@ -36,13 +40,18 @@ jobs:
 
       - name: Build and Install wheel
         run: |
-          poetry build -v
+          poetry build -f wheel -v
           python -m pip install dist/*.whl
 
       - name: Run tests
-        run: python -m pytest -s -v tests
+        run: |
+          cp -R tests "$RUNNER_TEMP/httpstan-tests"
+          cd "$RUNNER_TEMP"
+          python -c 'import httpstan, httpstan.empty; print(httpstan.__file__); httpstan.empty.noop()'
+          python -m pytest -s -v --asyncio-mode=auto httpstan-tests
 
       - name: Test PyStan compatibility
         run: |
-          pip install --pre pystan
+          cd "$RUNNER_TEMP"
+          pip install --pre pystan "$GITHUB_WORKSPACE"/dist/*.whl
           python -c'import stan;assert stan.build("parameters {real y;} model {y ~ normal(0,1);}").sample()["y"] is not None'

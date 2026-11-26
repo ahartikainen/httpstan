@@ -243,12 +243,9 @@ def toolchain_environment(family: str) -> Dict[str, str]:
     root = toolchain_directory()
     if env.get("HTTPSTAN_TOOLCHAIN_DIR"):
         return portable_environment(root, family, env)
-    if (
-        env.get("INCLUDE")
-        and env.get("LIB")
-        and all(shutil.which(name + ".exe", path=env.get("PATH", "")) for name in (family, "link", "lib"))
-    ):
-        return env
+    if env.get("INCLUDE") and env.get("LIB"):
+        if all(shutil.which(name + ".exe", path=env.get("PATH", "")) for name in (family, "link", "lib")):
+            return env
     if (root / "msvc" / "setup_x64.bat").is_file() and (
         family == "cl" or (root / "llvm" / "bin" / "clang-cl.exe").is_file()
     ):

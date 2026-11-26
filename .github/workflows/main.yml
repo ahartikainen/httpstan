@@ -10,6 +10,7 @@ on:
 
 jobs:
   tests:
+    if: ${{ github.event_name != 'pull_request' || (github.head_ref != 'support/windows' && !startsWith(github.head_ref, 'windows-test/')) }}
     name: httpstan tests
     runs-on: ${{ matrix.os }}
     strategy:

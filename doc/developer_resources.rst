@@ -30,17 +30,14 @@ Windows builds and tests
 ========================
 
 The separate ``.github/workflows/windows.yml`` builds Windows x64 wheels with
-CPython 3.12. A push to ``support/windows`` runs all four toolchain profiles
-with the full suite. Individual ``windows-test/<profile>`` branches run smoke
-tests. The profiles are ``official-clang``, ``official-msvc``, ``portable-clang``
-and ``portable-msvc``. Append ``-full``, ``-headers`` or ``-services`` to select
-a test stage. The two official ``-od`` profiles disable C++ optimization.
-
-The portable profiles require reviewing the Microsoft license and setting the
-repository variable ``HTTPSTAN_ACCEPT_MSVC_LICENSE=yes``. Optional variables
-``HTTPSTAN_PORTABLE_MSVC_VERSION`` and ``HTTPSTAN_PORTABLE_SDK_VERSION`` select
-versions. Portable Clang requires LLVM separately. The same CI driver can be
-run locally::
+CPython 3.12. Pushes, pull requests and manual runs execute the full suite
+with the ``official-clang``, ``official-msvc``, ``portable-clang`` and
+``portable-msvc`` profiles. The workflow sets ``HTTPSTAN_ACCEPT_MSVC_LICENSE``
+after the maintainers have accepted the applicable Microsoft terms. Optional
+variables ``HTTPSTAN_PORTABLE_MSVC_VERSION`` and
+``HTTPSTAN_PORTABLE_SDK_VERSION`` select versions (defaults: 14.44 and 26100).
+Portable Clang downloads LLVM separately. The same CI driver can be run
+locally::
 
     python scripts\windows_ci.py --profile official-clang --through full
 

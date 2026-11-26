@@ -11,7 +11,7 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 MANIFEST = PACKAGE_DIR / "windows-build.json"
@@ -31,16 +31,16 @@ MACROS = (
 LIBRARIES = ("sundials_cvodes", "sundials_idas", "sundials_nvecserial", "sundials_kinsol", "tbb")
 
 
-def compiler(family: str) -> str:
-    """Locate cl.exe or clang-cl.exe in the active toolchain."""
+def compiler(family: str, env: Optional[Dict[str, str]] = None) -> str:
+    """Locate cl.exe or clang-cl.exe in the supplied or active environment."""
     if family not in {"cl", "clang-cl"}:
         raise ValueError(f"Unsupported Windows compiler: {family}")
-    return tool(family)
+    return tool(family, env)
 
 
-def tool(name: str) -> str:
-    """Return the path to a Windows toolchain executable."""
-    path = shutil.which(name + ".exe")
+def tool(name: str, env: Optional[Dict[str, str]] = None) -> str:
+    """Return the path to a Windows toolchain executable in the given environment."""
+    path = shutil.which(name + ".exe", path=env.get("PATH", "") if env is not None else None)
     if path is None:
         raise RuntimeError(f"{name}.exe not found; activate the toolchain first")
     return path
@@ -64,8 +64,8 @@ def flags(family: str, optimization: str = "/O2") -> List[str]:
     return args + ["/D" + macro for macro in MACROS]
 
 
-def run(command: List[str], cwd: Path) -> str:
-    """Print exact compiler invocation, stream merged diagnostics, retain output."""
+def run(command: List[str], cwd: Path, env: Optional[Dict[str, str]] = None) -> str:
+    """Run a native command in the given environment and return its merged diagnostics."""
     invocation = subprocess.list2cmdline([str(arg) for arg in command])
     print(f"[native] cwd={cwd}\n[native] {invocation}", flush=True)
     start = time.monotonic()
@@ -73,6 +73,7 @@ def run(command: List[str], cwd: Path) -> str:
     with subprocess.Popen(
         command,
         cwd=cwd,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -92,11 +93,13 @@ def run(command: List[str], cwd: Path) -> str:
     return output
 
 
-def clang_link_args(family: str) -> List[str]:
-    """Locate the Clang runtime libraries needed by the Microsoft linker."""
+def clang_link_args(family: str, env: Optional[Dict[str, str]] = None) -> List[str]:
+    """Locate Clang runtime libraries using the given compiler environment."""
     if family != "clang-cl":
         return []
-    resource = Path(subprocess.check_output([compiler(family), "--print-resource-dir"], text=True).strip())
+    resource = Path(
+        subprocess.check_output([compiler(family, env), "--print-resource-dir"], env=env, text=True).strip()
+    )
     directory = resource / "lib" / "windows"
     if not directory.is_dir():
         return []
@@ -123,14 +126,16 @@ def compile_cpp(
     target: Path,
     optimization: str = "/O2",
     extra_compile_args: Optional[List[str]] = None,
+    env: Optional[Dict[str, str]] = None,
 ) -> str:
     """Compile a C++ source into an object file and return compiler output.
 
-    Additional compiler arguments follow the shared flags.
+    Additional compiler arguments follow the shared flags. If env is
+    supplied, use it for compiler discovery and execution.
     """
     return run(
         [
-            compiler(family),
+            compiler(family, env),
             *flags(family, optimization),
             *(extra_compile_args or []),
             "/I" + str(PACKAGE_DIR / "include"),
@@ -140,6 +145,7 @@ def compile_cpp(
             "/Fo" + str(target),
         ],
         target.parent,
+        env,
     )
 
 
@@ -159,22 +165,25 @@ def build_model(source: Path, directory: Path, extra_compile_args: List[str]) ->
     Return combined compiler and linker output. The extension uses the same
     compiler family as the precompiled services object.
     """
+    from httpstan._toolchain import toolchain_environment
+
     config = read_manifest()
     family = config["compiler"]
     optimization = config["optimization"]
     override = os.environ.get("HTTPSTAN_WINDOWS_CXX")
     if override and override != family:
         raise RuntimeError(f"Wheel uses {family}, not {override}; rebuild the service object to change compiler")
+    env = toolchain_environment(family)
     # A unique filename makes deletion/recompilation independent of loaded DLLs.
     obj = directory / (source.stem + ".obj")
     target = directory / ("stan_services_" + source.stem + "_" + uuid.uuid4().hex[:12] + ".pyd")
-    output = compile_cpp(family, source, obj, optimization, extra_compile_args)
+    output = compile_cpp(family, source, obj, optimization, extra_compile_args, env)
     # Publish only after a successful link to avoid caching incomplete modules.
     with tempfile.TemporaryDirectory(prefix="link-", dir=directory) as tmp:
         staged = Path(tmp) / target.name
         output += run(
             [
-                tool("link"),
+                tool("link", env),
                 "/NOLOGO",
                 "/DLL",
                 "/MACHINE:X64",
@@ -185,9 +194,10 @@ def build_model(source: Path, directory: Path, extra_compile_args: List[str]) ->
                 str(python_import_lib()),
                 *[str(PACKAGE_DIR / "lib" / (name + ".lib")) for name in LIBRARIES],
                 "Ws2_32.lib",
-                *clang_link_args(family),
+                *clang_link_args(family, env),
             ],
             directory,
+            env,
         )
         staged.replace(target)
     return output

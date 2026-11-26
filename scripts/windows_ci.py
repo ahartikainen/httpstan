@@ -1,7 +1,7 @@
 """Build and test Windows wheels with stage-specific logs."""
 
 import argparse
-import hashlib
+import importlib.util
 import json
 import os
 import platform
@@ -19,10 +19,10 @@ from typing import List, Optional
 ROOT = Path(__file__).resolve().parents[1]
 LOGS = ROOT / "windows-logs"
 BUILD = ROOT / "build" / "win"
-PORTABLE_URL = (
-    "https://gist.githubusercontent.com/mmozeiko/7f3162ec2988e81e56d5c4e22cde9977/"
-    "raw/49b58850aa5e5c1e65f090d4651ee76607883e11/portable-msvc.py"
-)
+spec = importlib.util.spec_from_file_location("httpstan_toolchain", ROOT / "httpstan" / "_toolchain.py")
+assert spec is not None and spec.loader is not None
+toolchain = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(toolchain)
 PROFILES = (
     "official-clang",
     "official-msvc",
@@ -72,121 +72,16 @@ def stage(name: str, command: List[str], cwd: Path = ROOT, env: Optional[dict] =
         raise SystemExit(status)
 
 
-def activate_batch(batch: Path, args: str, env: dict) -> dict:
-    """Return the environment produced by a toolchain activation script."""
-    # Do not print `set`: inherited CI environment may contain secrets.
-    script = BUILD / "activate.cmd"
-    activation_log = LOGS / "toolchain-activation.log"
-    script.write_text(
-        f'@echo off\ncall "{batch}" {args} > "{activation_log}" 2>&1\n' "if errorlevel 1 exit /b 1\nset\n",
-        encoding="mbcs",
-    )
-    result = subprocess.run(
-        ["cmd.exe", "/d", "/c", "call", str(script)],
-        env=env,
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        encoding="oem",
-        errors="replace",
-    )
-    if activation_log.exists():
-        print(activation_log.read_text(encoding="utf-8", errors="replace"), flush=True)
-    result.check_returncode()
-    activated = {}
-    for line in result.stdout.splitlines():
-        if "=" in line and not line.startswith("="):
-            key, value = line.split("=", 1)
-            activated[key.upper()] = value
-    return activated
-
-
 def configure(profile: str) -> dict:
     """Activate the selected official or portable toolchain."""
-    env = os.environ.copy()
-    llvm = shutil.which("clang-cl.exe")
-    if not llvm:
-        candidate = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "LLVM/bin/clang-cl.exe"
-        if candidate.is_file():
-            llvm = str(candidate)
+    env = {key.upper(): value for key, value in os.environ.items()}
+    family = "clang-cl" if "clang" in profile else "cl"
     if profile.startswith("portable"):
-        if env.get("HTTPSTAN_ACCEPT_MSVC_LICENSE", "").lower() != "yes":
-            raise SystemExit(
-                "Portable job requires repository variable HTTPSTAN_ACCEPT_MSVC_LICENSE=yes after reviewing the Microsoft license."
-            )
-        portable = BUILD / "portable"
-        portable.mkdir(exist_ok=True)
-        script = portable / "portable-msvc.py"
-        stage(
-            "01-download-portable",
-            ["curl.exe", "--fail", "--location", "--retry", "5", "--output", str(script), PORTABLE_URL],
-        )
-        print("Portable script SHA256:", hashlib.sha256(script.read_bytes()).hexdigest(), flush=True)
-        stage("02-portable-versions", [sys.executable, str(script), "--vs", "2022", "--show-versions"], cwd=portable)
-        args = [sys.executable, str(script), "--vs", "2022", "--target", "x64", "--host", "x64", "--accept-license"]
-        if env.get("HTTPSTAN_PORTABLE_MSVC_VERSION"):
-            args += ["--msvc-version", env["HTTPSTAN_PORTABLE_MSVC_VERSION"]]
-        if env.get("HTTPSTAN_PORTABLE_SDK_VERSION"):
-            args += ["--sdk-version", env["HTTPSTAN_PORTABLE_SDK_VERSION"]]
-        stage("03-portable-install", args, cwd=portable)
-        # Remove all conventional VS/SDK paths before activation, not after.
-        for key in tuple(env):
-            if key.upper() in {
-                "INCLUDE",
-                "LIB",
-                "LIBPATH",
-                "VCINSTALLDIR",
-                "VSINSTALLDIR",
-                "VCTOOLSINSTALLDIR",
-                "VCTOOLSVERSION",
-                "WINDOWSSDKDIR",
-                "WINDOWSSDKVERSION",
-                "UNIVERSALCRTSDKDIR",
-                "UCRTVERSION",
-            } or key.upper().startswith("VSCMD_"):
-                env.pop(key)
-        env["PATH"] = os.pathsep.join(
-            p
-            for p in env["PATH"].split(os.pathsep)
-            if "microsoft visual studio" not in p.lower() and "windows kits" not in p.lower()
-        )
-        root = (portable / "msvc").resolve()
-        env = activate_batch(root / "setup_x64.bat", "", env)
-        for name in ("cl.exe", "link.exe", "lib.exe", "dumpbin.exe"):
-            actual = shutil.which(name, path=env["PATH"])
-            if not actual or not Path(actual).resolve().is_relative_to(root):
-                raise RuntimeError(f"Portable {name} was not resolved inside {root}: {actual}")
-        for key in ("INCLUDE", "LIB"):
-            for value in env.get(key, "").split(os.pathsep):
-                if value and not Path(value).resolve().is_relative_to(root):
-                    raise RuntimeError(f"Portable {key} contains external path: {value}")
+        root = BUILD / "portable"
+        toolchain.install_portable(root, family, env.get("HTTPSTAN_ACCEPT_MSVC_LICENSE", "").lower() == "yes")
+        env = toolchain.portable_environment(root, family, env)
     else:
-        vswhere = (
-            Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
-            / "Microsoft Visual Studio/Installer/vswhere.exe"
-        )
-        root = subprocess.check_output(
-            [
-                str(vswhere),
-                "-latest",
-                "-products",
-                "*",
-                "-version",
-                "[17.0,18.0)",
-                "-requires",
-                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-                "-property",
-                "installationPath",
-            ],
-            text=True,
-        ).strip()
-        if not root:
-            raise RuntimeError("Visual Studio 2022 C++ Build Tools not found")
-        env = activate_batch(Path(root) / "VC/Auxiliary/Build/vcvars64.bat", "", env)
-    if "clang" in profile:
-        if not llvm:
-            raise RuntimeError("clang-cl not found; install LLVM or add clang-cl.exe to PATH")
-        env["PATH"] = str(Path(llvm).parent) + os.pathsep + env["PATH"]
+        env = toolchain.official_environment(family, env)
     # Make the dummy setuptools extension use the already activated toolchain.
     env["DISTUTILS_USE_SDK"] = "1"
     env["MSSDK"] = "1"
@@ -228,6 +123,7 @@ def validate_wheel(wheel: Path) -> None:
             "httpstan/stanc.exe",
             "httpstan/stan_services.obj",
             "httpstan/windows-build.json",
+            "httpstan/_toolchain.py",
             "httpstan/lib/tbb.dll",
             "httpstan/lib/tbb.lib",
             "httpstan/lib/sundials_cvodes.lib",
@@ -314,6 +210,19 @@ def main() -> None:
         cwd=test_root,
         env=env,
     )
+    # Compile models without the activated build environment.
+    env = toolchain.unactivated_environment(os.environ.copy())
+    env.pop("PYTHONPATH", None)
+    if args.profile.startswith("portable"):
+        env["HTTPSTAN_TOOLCHAIN_DIR"] = str(BUILD / "portable")
+        stage(
+            "24-portable-cli",
+            [py, "-m", "httpstan", "install", "portable", "--accept-license"],
+            cwd=test_root,
+            env=env,
+        )
+    else:
+        env.pop("HTTPSTAN_TOOLCHAIN_DIR", None)
     # Test the installed package, not the checkout.
     tests = test_root / "installed-tests"
     shutil.copytree(ROOT / "tests", tests, dirs_exist_ok=True)

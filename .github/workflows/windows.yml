@@ -2,8 +2,10 @@ name: httpstan Windows experiment
 
 on:
   push:
-    branches:
+    branches-ignore:
+      - 'support/windows'
       - 'windows-test/**'
+  pull_request:
   workflow_dispatch:
     inputs:
       profile:

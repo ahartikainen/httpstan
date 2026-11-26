@@ -2,10 +2,9 @@ name: httpstan Windows experiment
 
 on:
   push:
-    branches-ignore:
+    branches:
       - 'support/windows'
       - 'windows-test/**'
-  pull_request:
   workflow_dispatch:
     inputs:
       profile:
@@ -49,6 +48,10 @@ jobs:
         run: |
           profile="${INPUT_PROFILE:-${REF_NAME#windows-test/}}"
           through="${INPUT_THROUGH:-smoke}"
+
+          if [[ "$profile" == "support/windows" ]]; then
+            profile="all"
+          fi
           case "$profile" in
             *-full) profile="${profile%-full}"; through=full ;;
             *-headers) profile="${profile%-headers}"; through=headers ;;

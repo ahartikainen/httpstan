@@ -103,7 +103,7 @@ def patch_sundials(root):
         text = path.read_text(encoding="utf-8")
         changed = text.replace("__attribute__ ((__deprecated__(msg)))", "__declspec(deprecated(msg))")
         changed = changed.replace("__attribute__ ((__deprecated__))", "__declspec(deprecated)")
-        changed = changed.replace("#define SUNDIALS_HAVE_POSIX_TIMERS\n", "/* #undef SUNDIALS_HAVE_POSIX_TIMERS */\n")
+        changed = changed.replace("\n#define SUNDIALS_HAVE_POSIX_TIMERS\n", "\n#undef SUNDIALS_HAVE_POSIX_TIMERS\n")
         if changed != text:
             path.write_text(changed, encoding="utf-8")
             print(f"[patch] {path}", flush=True)

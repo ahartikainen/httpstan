@@ -20,7 +20,7 @@ classifiers = [
 ]
 # include: poetry automatically excludes paths mentioned in .gitignore, selectively add back
 include = [
-  "httpstan/*.o",
+  {path = "httpstan/*.o", format = ["sdist", "wheel"]},
   {path = "httpstan/*.obj", format = ["wheel"]},
   {path = "httpstan/lib/*.lib", format = ["wheel"]},
   {path = "httpstan/lib/*.dll", format = ["wheel"]},
@@ -28,9 +28,9 @@ include = [
   {path = "httpstan/stanc.exe", format = ["wheel"]},
   {path = "httpstan/windows-build.json", format = ["wheel"]},
   "httpstan/*.cpp",
-  "httpstan/lib/libsundials*",
-  "httpstan/lib/libtbb*",
-  "httpstan/stanc",
+  {path = "httpstan/lib/libsundials*", format = ["sdist", "wheel"]},
+  {path = "httpstan/lib/libtbb*", format = ["sdist", "wheel"]},
+  {path = "httpstan/stanc", format = ["sdist", "wheel"]},
   {path = "httpstan/include/**/*", format = ["sdist", "wheel"]},
   "doc/openapi.yaml",
 ]
@@ -45,8 +45,8 @@ marshmallow = "^3.10"
 numpy = ">=1.19"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2"
-pytest-asyncio = "^0.15"
+pytest = "^8.3"
+pytest-asyncio = "^0.24"
 apispec = {version = "^6.0", extras = ["yaml"]}
 autoflake = "^1.4"
 black = "^26.5.1"
@@ -59,6 +59,9 @@ sphinx = "^7.2"
 sphinx-autoapi = "^3.0.0"
 sphinx-rtd-theme = "^2.0.0"
 sphinxcontrib-openapi = "^0.8.4"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.black]
 line-length = 119

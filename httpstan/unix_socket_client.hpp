@@ -20,13 +20,8 @@
 namespace httpstan {
 
 /**
- * <code>unix_socket_client</code> owns a blocking, connected Unix-domain
- * (<code>AF_UNIX</code> / <code>SOCK_STREAM</code>) stream socket.
- *
- * It is a small RAII replacement for the sliver of <code>boost::asio</code>
- * that httpstan used: connect to a filesystem path, write newline-terminated
- * messages, and close on destruction. On Windows the endpoint is an
- * authenticated TCP loopback connection because CPython lacks AF_UNIX.
+ * Owns a blocking stream socket and sends newline-terminated messages.
+ * Uses a Unix-domain socket on Unix and authenticated TCP loopback on Windows.
  */
 class unix_socket_client {
 private:
@@ -68,8 +63,8 @@ private:
   }
 
 public:
+  /** Connect to a loopback endpoint in the form tcp:<port>:<token>. */
   explicit unix_socket_client(const std::string &endpoint) {
-    // endpoint = tcp:<port>:<random secret>; never include the secret in errors.
     if (endpoint.rfind("tcp:", 0) != 0) throw std::runtime_error("invalid callback endpoint");
     std::size_t split = endpoint.find(':', 4);
     if (split == std::string::npos) throw std::runtime_error("invalid callback endpoint");

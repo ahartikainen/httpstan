@@ -15,7 +15,8 @@ win = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(win)
 
 
-def main():
+def main() -> None:
+    """Check native Windows callback transport."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--compiler", choices=["cl", "clang-cl"], required=True)
     args = parser.parse_args()

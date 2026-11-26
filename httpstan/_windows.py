@@ -1,8 +1,4 @@
-"""Experimental Windows native build helpers (MSVC ABI, x64).
-
-The precompiled service object and generated model use the same compiler family
-and flags. Call from a VS developer prompt or a portable setup_x64.bat prompt.
-"""
+"""Native Windows builds using an activated x64 MSVC-compatible toolchain."""
 
 import hashlib
 import json
@@ -15,7 +11,7 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 MANIFEST = PACKAGE_DIR / "windows-build.json"
@@ -36,15 +32,14 @@ LIBRARIES = ("sundials_cvodes", "sundials_idas", "sundials_nvecserial", "sundial
 
 
 def compiler(family: str) -> str:
+    """Locate cl.exe or clang-cl.exe in the active toolchain."""
     if family not in {"cl", "clang-cl"}:
         raise ValueError(f"Unsupported Windows compiler: {family}")
-    path = shutil.which(family + ".exe")
-    if path is None:
-        raise RuntimeError(f"{family}.exe not found; activate a VS or portable developer prompt first")
-    return path
+    return tool(family)
 
 
 def tool(name: str) -> str:
+    """Return the path to a Windows toolchain executable."""
     path = shutil.which(name + ".exe")
     if path is None:
         raise RuntimeError(f"{name}.exe not found; activate the toolchain first")
@@ -52,9 +47,18 @@ def tool(name: str) -> str:
 
 
 def flags(family: str, optimization: str = "/O2") -> List[str]:
-    args = ["/nologo", "/std:c++17", "/EHsc", "/MD", "/bigobj", "/Zc:__cplusplus", optimization]
-    # Preserve IEEE semantics, no fast-math or link-time code generation.
-    args += ["/fp:precise", "/DNDEBUG"]
+    """Return the shared MSVC-ABI C++ compiler flags and Stan macros."""
+    args = [
+        "/nologo",
+        "/std:c++17",
+        "/EHsc",
+        "/MD",
+        "/bigobj",
+        "/Zc:__cplusplus",
+        optimization,
+        "/fp:precise",
+        "/DNDEBUG",
+    ]
     if family == "cl":
         args += ["/permissive-", "/utf-8"]
     return args + ["/D" + macro for macro in MACROS]
@@ -89,6 +93,7 @@ def run(command: List[str], cwd: Path) -> str:
 
 
 def clang_link_args(family: str) -> List[str]:
+    """Locate the Clang runtime libraries needed by the Microsoft linker."""
     if family != "clang-cl":
         return []
     resource = Path(subprocess.check_output([compiler(family), "--print-resource-dir"], text=True).strip())
@@ -103,6 +108,7 @@ def clang_link_args(family: str) -> List[str]:
 
 
 def python_import_lib() -> Path:
+    """Locate the import library for the running CPython version."""
     name = f"python{sys.version_info.major}{sys.version_info.minor}.lib"
     candidates = [Path(sys.base_prefix) / "libs" / name, Path(sys.prefix) / "libs" / name]
     for path in candidates:
@@ -111,11 +117,22 @@ def python_import_lib() -> Path:
     raise RuntimeError(f"Cannot find CPython import library {name}: {candidates}")
 
 
-def compile_cpp(family: str, source: Path, target: Path, optimization: str = "/O2") -> str:
+def compile_cpp(
+    family: str,
+    source: Path,
+    target: Path,
+    optimization: str = "/O2",
+    extra_compile_args: Optional[List[str]] = None,
+) -> str:
+    """Compile a C++ source into an object file and return compiler output.
+
+    Additional compiler arguments follow the shared flags.
+    """
     return run(
         [
             compiler(family),
             *flags(family, optimization),
+            *(extra_compile_args or []),
             "/I" + str(PACKAGE_DIR / "include"),
             "/I" + sysconfig.get_path("include"),
             "/c",
@@ -127,15 +144,21 @@ def compile_cpp(family: str, source: Path, target: Path, optimization: str = "/O
 
 
 def read_manifest() -> dict:
+    """Read the compiler configuration used to build the services object."""
     return json.loads(MANIFEST.read_text(encoding="utf-8"))
 
 
 def cache_identity() -> bytes:
-    # Exclude absolute toolchain paths from the persistent model identifier.
+    """Return a digest of the native build configuration for the model cache."""
     return hashlib.sha256(MANIFEST.read_bytes()).digest()
 
 
 def build_model(source: Path, directory: Path, extra_compile_args: List[str]) -> str:
+    """Compile and link a model extension in its cache directory.
+
+    Return combined compiler and linker output. The extension uses the same
+    compiler family as the precompiled services object.
+    """
     config = read_manifest()
     family = config["compiler"]
     optimization = config["optimization"]
@@ -145,21 +168,8 @@ def build_model(source: Path, directory: Path, extra_compile_args: List[str]) ->
     # A unique filename makes deletion/recompilation independent of loaded DLLs.
     obj = directory / (source.stem + ".obj")
     target = directory / ("stan_services_" + source.stem + "_" + uuid.uuid4().hex[:12] + ".pyd")
-    args = [
-        compiler(family),
-        *flags(family, optimization),
-        *extra_compile_args,
-        "/I" + str(PACKAGE_DIR / "include"),
-        "/I" + sysconfig.get_path("include"),
-        "/c",
-        str(source),
-        "/Fo" + str(obj),
-    ]
-    output = run(args, directory)
-    # Explicit linking avoids setuptools deriving an incorrect PyInit name and
-    # avoids private distutils compiler-selection interfaces for clang-cl.
-    # Publish only after a successful link: a failed link must not leave a
-    # partially written .pyd that the cache mistakes for a valid module.
+    output = compile_cpp(family, source, obj, optimization, extra_compile_args)
+    # Publish only after a successful link to avoid caching incomplete modules.
     with tempfile.TemporaryDirectory(prefix="link-", dir=directory) as tmp:
         staged = Path(tmp) / target.name
         output += run(

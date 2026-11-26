@@ -37,9 +37,11 @@ def fit_path(fit_name: str) -> Path:
 
 
 def delete_model_directory(model_name: str) -> None:
-    """Delete the directory in which a model and associated fits are stored."""
+    """Delete the directory in which a model and associated fits are stored.
+
+    On Windows, propagate deletion errors other than a missing directory.
+    """
     if sys.platform == "win32":
-        # Do not silently claim successful deletion if a Windows file is locked.
         try:
             shutil.rmtree(model_directory(model_name))
         except FileNotFoundError:

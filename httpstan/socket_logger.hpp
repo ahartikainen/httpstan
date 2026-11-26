@@ -47,7 +47,7 @@ public:
    * Constructs a logger with an output socket
    * and an optional prefix for comments.
    *
-   * @param[in] socket_filename path of the Unix-domain socket to connect to
+   * @param[in] socket_filename Unix-domain path or Windows loopback endpoint
    * @param[in] message_prefix will be prefixed to each string which is sent to the socket. Default is "".
    */
   explicit socket_logger(const std::string &socket_filename, const std::string &message_prefix = "")

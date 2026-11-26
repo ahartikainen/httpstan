@@ -18,6 +18,7 @@ pytestmark = [
 
 
 async def test_windows_models(api_url: str) -> None:
+    """Load, sample, delete and rebuild independent Windows model extensions."""
     code = "parameters {real windows_y;} model {windows_y ~ normal(0,1);}"
     code2 = "parameters {real windows_z;} model {windows_z ~ normal(2,1);}"
     name = await helpers.get_model_name(api_url, code)
@@ -26,9 +27,9 @@ async def test_windows_models(api_url: str) -> None:
     second = httpstan.models.import_services_extension_module(name2)
     assert first.__file__ != second.__file__
     assert first is httpstan.models.import_services_extension_module(name)
-    print("[smoke] model modules:", first.__file__, second.__file__, flush=True)
 
     async def sample(chain: int) -> None:
+        """Sample one chain and verify the number of draws."""
         operation = await helpers.sample(
             api_url,
             code,
@@ -41,7 +42,6 @@ async def test_windows_models(api_url: str) -> None:
                 "random_seed": 111 + chain,
             },
         )
-        print(f"[smoke] chain {chain}: {operation}", flush=True)
         fit = await helpers.fit_bytes(api_url, operation["result"]["name"])
         assert len(helpers.extract("windows_y", fit)) == 12
 

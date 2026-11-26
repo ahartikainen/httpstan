@@ -1,8 +1,4 @@
-"""Run the Windows experiment in stages, retaining each stage's raw output.
-
-This script is used by .github/workflows/windows.yml. It can also be run from
-an ordinary Windows cmd.exe with Python 3.12 installed.
-"""
+"""Build and test Windows wheels with stage-specific logs."""
 
 import argparse
 import hashlib
@@ -18,11 +14,11 @@ import time
 import traceback
 import zipfile
 from pathlib import Path
+from typing import List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 LOGS = ROOT / "windows-logs"
 BUILD = ROOT / "build" / "win"
-# Raw revision identified from the author's Gist, not a moving latest script.
 PORTABLE_URL = (
     "https://gist.githubusercontent.com/mmozeiko/7f3162ec2988e81e56d5c4e22cde9977/"
     "raw/49b58850aa5e5c1e65f090d4651ee76607883e11/portable-msvc.py"
@@ -37,7 +33,8 @@ PROFILES = (
 )
 
 
-def stage(name, command, cwd=ROOT, env=None):
+def stage(name: str, command: List[str], cwd: Path = ROOT, env: Optional[dict] = None) -> None:
+    """Run one CI stage and save its combined output and exit status."""
     LOGS.mkdir(exist_ok=True)
     command = [str(x) for x in command]
     if not Path(command[0]).is_absolute():
@@ -75,7 +72,8 @@ def stage(name, command, cwd=ROOT, env=None):
         raise SystemExit(status)
 
 
-def activate_batch(batch, args, env):
+def activate_batch(batch: Path, args: str, env: dict) -> dict:
+    """Return the environment produced by a toolchain activation script."""
     # Do not print `set`: inherited CI environment may contain secrets.
     script = BUILD / "activate.cmd"
     activation_log = LOGS / "toolchain-activation.log"
@@ -103,7 +101,8 @@ def activate_batch(batch, args, env):
     return activated
 
 
-def configure(profile):
+def configure(profile: str) -> dict:
+    """Activate the selected official or portable toolchain."""
     env = os.environ.copy()
     llvm = shutil.which("clang-cl.exe")
     if not llvm:
@@ -111,7 +110,6 @@ def configure(profile):
         if candidate.is_file():
             llvm = str(candidate)
     if profile.startswith("portable"):
-        # No silent license acceptance. Repository owner opts in after review.
         if env.get("HTTPSTAN_ACCEPT_MSVC_LICENSE", "").lower() != "yes":
             raise SystemExit(
                 "Portable job requires repository variable HTTPSTAN_ACCEPT_MSVC_LICENSE=yes after reviewing the Microsoft license."
@@ -186,7 +184,6 @@ def configure(profile):
             raise RuntimeError("Visual Studio 2022 C++ Build Tools not found")
         env = activate_batch(Path(root) / "VC/Auxiliary/Build/vcvars64.bat", "", env)
     if "clang" in profile:
-        # Use the same LLVM installation for both clang profiles.
         if not llvm:
             raise RuntimeError("clang-cl not found; install LLVM or add clang-cl.exe to PATH")
         env["PATH"] = str(Path(llvm).parent) + os.pathsep + env["PATH"]
@@ -223,7 +220,8 @@ def configure(profile):
     return env
 
 
-def validate_wheel(wheel):
+def validate_wheel(wheel: Path) -> None:
+    """Check the Windows wheel tag and required native files."""
     with zipfile.ZipFile(wheel) as archive:
         files = set(archive.namelist())
         required = {
@@ -242,8 +240,8 @@ def validate_wheel(wheel):
             "httpstan/include/Eigen/Core",
             "httpstan/include/tbb/tbb.h",
             "httpstan/include/rapidjson/document.h",
+            "httpstan/empty.cp312-win_amd64.pyd",
         }
-        required.add("httpstan/empty.cp312-win_amd64.pyd")
         missing = required - files
         if missing or not wheel.name.endswith("win_amd64.whl"):
             raise RuntimeError(f"Wrong wheel tag or missing wheel contents: {wheel.name}, {sorted(missing)}")
@@ -251,13 +249,14 @@ def validate_wheel(wheel):
         (LOGS / "wheel-files.txt").write_text("\n".join(sorted(files)), encoding="utf-8")
 
 
-def main():
+def main() -> None:
+    """Run the selected build and test stages."""
     p = argparse.ArgumentParser()
     p.add_argument("--profile", choices=PROFILES, required=True)
     p.add_argument("--through", choices=["headers", "services", "smoke", "full"], default="smoke")
     args = p.parse_args()
     if sys.platform != "win32" or sys.version_info[:2] != (3, 12) or sys.maxsize <= 2**32:
-        raise SystemExit("First-round experiments require Windows x64 and CPython 3.12")
+        raise SystemExit("Windows x64 and CPython 3.12 required")
     LOGS.mkdir(exist_ok=True)
     BUILD.mkdir(parents=True, exist_ok=True)
     (LOGS / "summary.txt").write_text(f"profile={args.profile} through={args.through}\n", encoding="utf-8")
@@ -286,7 +285,6 @@ def main():
         raise RuntimeError("No wheel produced")
     wheel = wheels[0].resolve()
     validate_wheel(wheel)
-    # Fresh virtual environment: no source package or build-time Python dependencies.
     test_root = Path(tempfile.mkdtemp(prefix="httpstan-test-", dir=os.environ.get("RUNNER_TEMP")))
     print(f"[test] isolated test directory: {test_root}", flush=True)
     venv = test_root / "venv"
@@ -316,7 +314,7 @@ def main():
         cwd=test_root,
         env=env,
     )
-    # Copy tests outside the source repo so pytest cannot accidentally import the source tree.
+    # Test the installed package, not the checkout.
     tests = test_root / "installed-tests"
     shutil.copytree(ROOT / "tests", tests, dirs_exist_ok=True)
     smoke = [
@@ -329,12 +327,6 @@ def main():
             "test_log_prob_grad.py",
         )
     ]
-    stage(
-        "25-runtime-smoke",
-        [py, "-m", "pytest", "-s", "-vv", "--log-cli-level=INFO", "--asyncio-mode=auto", *smoke],
-        cwd=test_root,
-        env=env,
-    )
     if args.through == "full":
         stage(
             "26-full-pytest",
@@ -342,8 +334,14 @@ def main():
             cwd=test_root,
             env=env,
         )
-    # Install PyStan from PyPI while forcing the local httpstan wheel, so pip cannot
-    # replace it with a different build. If unavailable, report that separately.
+    else:
+        stage(
+            "25-runtime-smoke",
+            [py, "-m", "pytest", "-s", "-vv", "--log-cli-level=INFO", "--asyncio-mode=auto", *smoke],
+            cwd=test_root,
+            env=env,
+        )
+    # Keep the local httpstan wheel when installing PyStan.
     stage(
         "27-install-pystan",
         [py, "-m", "pip", "install", "--pre", "pystan==3.14.0", str(wheel)],

@@ -20,5 +20,6 @@ extensions = [
 ]
 
 
-def build(setup_kwargs):
+def build(setup_kwargs: dict) -> None:
+    """Add the extension module to the setuptools build configuration."""
     setup_kwargs.update({"ext_modules": extensions})

@@ -3,7 +3,8 @@
 import multiprocessing as mp
 
 
-def main():
+def main() -> None:
+    """Compile a model and sample two chains using the installed PyStan."""
     import stan
 
     import httpstan

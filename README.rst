@@ -29,8 +29,8 @@ Documentation: `https://httpstan.readthedocs.org <https://httpstan.readthedocs.o
 Requirements
 ============
 
-- Linux or macOS
-- C++ compiler: gcc ≥9.0 or clang ≥10.0.
+- Linux or macOS (gcc ≥9.0 or clang ≥10.0).
+- Windows x64 with CPython 3.12 (MSVC or clang-cl; see source build instructions).
 
 Background
 ==========
@@ -70,6 +70,26 @@ If your system uses a different kind of CPU, you should be able to install from 
 
     # Install the wheel
     python3 -m pip install dist/*.whl
+
+
+Windows (from source)
+---------------------
+
+On Windows x64, use CPython 3.12 and an activated MSVC-compatible x64
+compiler environment (Visual Studio 2022 Build Tools or a standalone MSVC
+and Windows SDK installation). Install LLVM as well if using clang-cl.
+Build the wheel in a clean checkout::
+
+    set DISTUTILS_USE_SDK=1
+    set MSSDK=1
+    python -m pip install "poetry~=1.8.0" "setuptools<81"
+    python scripts\build_windows.py all --compiler clang-cl
+    python -m poetry build -f wheel
+    python -m pip install dist\httpstan-4.17.0-cp312-cp312-win_amd64.whl
+
+Use ``--compiler cl`` for MSVC instead. Keep the same toolchain activated when
+compiling Stan models at runtime. The Windows build does not bundle the
+compiler or Windows SDK. Windows wheels on PyPI are not assumed to be available.
 
 
 Usage

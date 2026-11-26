@@ -1,9 +1,4 @@
-"""Build Windows httpstan dependencies, preserving Stan Math's source selection.
-
-Run in an activated x64 MSVC-compatible toolchain prompt. Stage boundaries are
-also used by windows_ci.py; do not use an existing dependency tree from another
-compiler configuration for a release build.
-"""
+"""Build httpstan native dependencies in an activated Windows x64 toolchain."""
 
 import argparse
 import hashlib
@@ -30,7 +25,8 @@ win = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(win)
 
 
-def version(name):
+def version(name: str) -> str:
+    """Read a dependency version from the Makefile."""
     for line in (ROOT / "Makefile").read_text().splitlines():
         if line.startswith(name + " := "):
             return line.split(":=", 1)[1].strip()
@@ -45,11 +41,11 @@ SUNDIALS = version("SUNDIALS_VERSION")
 TBB = version("TBB_VERSION")
 STANC = version("STANC_VERSION")
 RAPIDJSON = version("RAPIDJSON_VERSION")
-# Windows only for the first experiment; leave the Unix Makefile unchanged.
-PYBIND = "2.13.6"
+PYBIND = version("PYBIND11_VERSION")
 
 
-def download(url, dest):
+def download(url: str, dest: Path) -> Path:
+    """Download an archive if needed and return its path."""
     if not dest.exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
         part = dest.with_suffix(dest.suffix + ".part")
@@ -75,7 +71,8 @@ def download(url, dest):
     return dest
 
 
-def github_archive(repo, tag, directory):
+def github_archive(repo: str, tag: str, directory: Path) -> Path:
+    """Extract a tagged source archive and return its directory."""
     if not directory.is_dir():
         path = download(
             f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz",
@@ -88,15 +85,14 @@ def github_archive(repo, tag, directory):
     return directory
 
 
-def copy_tree(source, target):
+def copy_tree(source: Path, target: Path) -> None:
+    """Copy dependency headers into the package."""
     print(f"[headers] {source} -> {target}", flush=True)
     shutil.copytree(source, target, dirs_exist_ok=True)
 
 
-def patch_sundials(root):
-    # The vendored header was generated on a Unix compiler. Keep the index and
-    # precision configuration unchanged; disable only POSIX timers and replace
-    # deprecation syntax that MSVC does not understand.
+def patch_sundials(root: Path) -> None:
+    """Disable POSIX timers and adapt deprecation macros for MSVC."""
     config = root / "include" / "sundials" / "sundials_config.h"
     export = root / "include" / "sundials" / "sundials_export.h"
     for path in (config, export):
@@ -109,7 +105,8 @@ def patch_sundials(root):
             print(f"[patch] {path}", flush=True)
 
 
-def prepare():
+def prepare() -> None:
+    """Prepare the headers, stanc executable and TBB libraries."""
     BUILD.mkdir(parents=True, exist_ok=True)
     INCLUDE.mkdir(parents=True, exist_ok=True)
     LIB.mkdir(parents=True, exist_ok=True)
@@ -137,7 +134,6 @@ def prepare():
         PACKAGE / "stanc.exe",
     )
     win.run([str(PACKAGE / "stanc.exe"), "--version"], ROOT)
-    # Official Windows release, not the MinGW library from CmdStan.
     archive = download(
         f"https://github.com/uxlfoundation/oneTBB/releases/download/v{TBB}/tbb-{TBB}-win.zip",
         BUILD / "archives/tbb-win.zip",
@@ -145,8 +141,6 @@ def prepare():
     with zipfile.ZipFile(archive) as z:
         for name in ("tbb.dll", "tbb.lib"):
             candidates = [p for p in z.namelist() if p.lower().endswith("/" + name) and "/intel64/" in p.lower()]
-            print(f"[tbb] {name} candidates={candidates}", flush=True)
-            # vc14 is the VS2015+ ABI; a later vc14x directory is also compatible.
             candidates = [p for p in candidates if any(x.startswith("vc14") for x in p.lower().split("/"))]
             if not candidates:
                 raise RuntimeError(f"No x64 vc14-family {name} in TBB release archive")
@@ -154,15 +148,14 @@ def prepare():
             print(f"[tbb] selected {selected}", flush=True)
             with z.open(selected) as src, (LIB / name).open("wb") as dst:
                 shutil.copyfileobj(src, dst)
-        # Preserve release license alongside development binaries where available.
         for p in z.namelist():
             if p.rsplit("/", 1)[-1].lower() in {"license", "license.txt"}:
                 (LIB / "TBB-LICENSE.txt").write_bytes(z.read(p))
                 break
-    win.run([win.tool("dumpbin"), "/headers", str(LIB / "tbb.dll")], ROOT)
 
 
-def sundials(family):
+def sundials(family: str) -> None:
+    """Compile the bundled SUNDIALS C sources into static libraries."""
     source = BUILD / f"math-{MATH}/lib/sundials_{SUNDIALS}"
     src = source / "src"
     objdir = BUILD / "sundials-obj"
@@ -213,9 +206,8 @@ def sundials(family):
         win.run([win.tool("lib"), "/NOLOGO", "/OUT:" + str(target), *[str(objects[p]) for p in sources]], objdir)
 
 
-def smoke_headers(family, optimization):
-    # Two small programs: first header compilation, then full Math header and
-    # reverse-mode derivative (compile only before linking dependencies).
+def smoke_headers(family: str, optimization: str) -> None:
+    """Compile Stan Math header smoke tests."""
     for name, code in (
         ("prim", "#include <stan/math/prim.hpp>\nint main(){return stan::math::square(2.0)==4.0?0:1;}\n"),
         (
@@ -228,8 +220,8 @@ def smoke_headers(family, optimization):
         win.compile_cpp(family, path, path.with_suffix(".obj"), optimization)
 
 
-def smoke_link(family):
-    # Test actual runtime linkage and the derivative, not only header parsing.
+def smoke_link(family: str) -> None:
+    """Link and run the Stan Math reverse-mode smoke test."""
     exe = BUILD / "math.exe"
     win.run(
         [
@@ -247,7 +239,8 @@ def smoke_link(family):
     win.run([str(exe)], BUILD)
 
 
-def services(family, optimization):
+def services(family: str, optimization: str) -> None:
+    """Compile the shared services object and record its build configuration."""
     win.compile_cpp(family, PACKAGE / "stan_services.cpp", PACKAGE / "stan_services.obj", optimization)
     with (PACKAGE / "stan_services.obj").open("rb") as fh:
         services_digest = hashlib.file_digest(fh, "sha256").hexdigest()
@@ -272,7 +265,8 @@ def services(family, optimization):
     print(win.MANIFEST.read_text(), flush=True)
 
 
-def main():
+def main() -> None:
+    """Build the selected native dependency stages."""
     p = argparse.ArgumentParser()
     p.add_argument("stage", choices=["prepare", "headers", "sundials", "link", "services", "all"])
     p.add_argument("--compiler", choices=["cl", "clang-cl"], required=True)

@@ -3,7 +3,7 @@
 Functions here perform the menial task of calling (from Python) a named C++
 function in stan::services given a specific Stan model. The output of the
 stan::services function is routed from stan::callbacks writers into Python via a
-Unix domain socket.
+Unix-domain socket (authenticated TCP loopback on Windows).
 
 """
 
@@ -37,7 +37,6 @@ def init_worker() -> None:
     signal.signal(signal.SIGINT, signal.SIG_IGN)  # ignore KeyboardInterrupt
 
 
-# Do not create another executor merely by importing this module in a spawned worker.
 executor: typing.Optional[concurrent.futures.ProcessPoolExecutor] = (
     None
     if sys.platform == "win32"
@@ -46,6 +45,7 @@ executor: typing.Optional[concurrent.futures.ProcessPoolExecutor] = (
 
 
 def _get_executor() -> concurrent.futures.ProcessPoolExecutor:
+    """Return the process pool, creating it lazily on Windows."""
     global executor
     if executor is None:
         executor = concurrent.futures.ProcessPoolExecutor(mp_context=mp.get_context("spawn"), initializer=init_worker)
@@ -82,14 +82,13 @@ async def call(
 ) -> None:
     """Call stan::services function.
 
-    Yields (asynchronously) messages from the stan::callbacks writers which are
-    written to by the stan::services function.
+    Collects messages from stan::callbacks writers and stores the compressed fit.
 
     This is a coroutine function.
 
     Arguments:
         function_name: full name of function in stan::services
-        services_module (module): model-specific services extension module
+        model_name: Cached model name.
         fit_name: Name of fit, used for saving length-prefixed messages
         logger_callback: Callback function for logger messages, including sampling progress messages
         kwargs: named stan::services function arguments, see CmdStan documentation.
@@ -115,8 +114,7 @@ async def call(
     with socket.socket(family, type=socket.SOCK_STREAM) as socket_:
         secret = b""
         if windows:
-            # Bind only to loopback, and authenticate each native callback.
-            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
                 socket_.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             socket_.bind(("127.0.0.1", 0))
             secret = secrets.token_hex(32).encode("ascii")
@@ -131,17 +129,16 @@ async def call(
         lazy_function_wrapper = _make_lazy_function_wrapper(function_basename, model_name)
         lazy_function_wrapper_partial = functools.partial(lazy_function_wrapper, socket_filename, **kwargs)
 
-        # If HTTPSTAN_DEBUG is set block until sampling is complete. Do not use an executor.
+        # Debug mode runs in the server process; Windows still needs a concurrent socket reader.
         if HTTPSTAN_DEBUG and not windows:  # pragma: no cover
             future: asyncio.Future = asyncio.Future()
             logger.debug("Calling stan::services function with debug mode on.")
             print("Warning: httpstan debug mode is on! `num_samples` must be set to a small number (e.g., 10).")
             future.set_result(lazy_function_wrapper_partial())
         elif HTTPSTAN_DEBUG:
-            # The Windows sender must run concurrently with its socket reader.
             future = asyncio.get_running_loop().run_in_executor(None, lazy_function_wrapper_partial)
         else:
-            future = asyncio.get_running_loop().run_in_executor(_get_executor(), lazy_function_wrapper_partial)  # type: ignore
+            future = asyncio.get_running_loop().run_in_executor(_get_executor(), lazy_function_wrapper_partial)
 
         messages_files: typing.Mapping[socket.socket, io.BytesIO] = collections.defaultdict(io.BytesIO)
         # using a wbits value which makes things compatible with gzip
@@ -201,7 +198,6 @@ async def call(
             # have been opened or (2) all connections have been closed.
             if not readable:
                 if windows and future.done():
-                    # A local unrelated connection must not delay a completed job.
                     for conn in list(pending_auth):
                         conn.close()
                         potential_readers.remove(conn)

@@ -4,6 +4,7 @@ Run in an activated x64 MSVC-compatible toolchain prompt. Stage boundaries are
 also used by windows_ci.py; do not use an existing dependency tree from another
 compiler configuration for a release build.
 """
+
 import argparse
 import hashlib
 import importlib.util
@@ -52,8 +53,21 @@ def download(url, dest):
     if not dest.exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
         part = dest.with_suffix(dest.suffix + ".part")
-        win.run(["curl.exe", "--fail", "--location", "--retry", "5", "--silent", "--show-error",
-                 "--output", str(part), url], ROOT)
+        win.run(
+            [
+                "curl.exe",
+                "--fail",
+                "--location",
+                "--retry",
+                "5",
+                "--silent",
+                "--show-error",
+                "--output",
+                str(part),
+                url,
+            ],
+            ROOT,
+        )
         part.replace(dest)
     with dest.open("rb") as fh:
         digest = hashlib.file_digest(fh, "sha256").hexdigest()
@@ -63,7 +77,10 @@ def download(url, dest):
 
 def github_archive(repo, tag, directory):
     if not directory.is_dir():
-        path = download(f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz", BUILD / "archives" / (directory.name + ".tar.gz"))
+        path = download(
+            f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz",
+            BUILD / "archives" / (directory.name + ".tar.gz"),
+        )
         with tarfile.open(path) as archive:
             archive.extractall(BUILD, filter="data")
     if not directory.is_dir():
@@ -112,12 +129,19 @@ def prepare():
     sundials = math / f"lib/sundials_{SUNDIALS}"
     patch_sundials(sundials)
     copy_tree(sundials / "include", INCLUDE)
-    shutil.copy2(download(f"https://github.com/stan-dev/stanc3/releases/download/v{STANC}/windows-stanc",
-                          BUILD / "archives/stanc.exe"), PACKAGE / "stanc.exe")
+    shutil.copy2(
+        download(
+            f"https://github.com/stan-dev/stanc3/releases/download/v{STANC}/windows-stanc",
+            BUILD / "archives/stanc.exe",
+        ),
+        PACKAGE / "stanc.exe",
+    )
     win.run([str(PACKAGE / "stanc.exe"), "--version"], ROOT)
     # Official Windows release, not the MinGW library from CmdStan.
-    archive = download(f"https://github.com/uxlfoundation/oneTBB/releases/download/v{TBB}/tbb-{TBB}-win.zip",
-                       BUILD / "archives/tbb-win.zip")
+    archive = download(
+        f"https://github.com/uxlfoundation/oneTBB/releases/download/v{TBB}/tbb-{TBB}-win.zip",
+        BUILD / "archives/tbb-win.zip",
+    )
     with zipfile.ZipFile(archive) as z:
         for name in ("tbb.dll", "tbb.lib"):
             candidates = [p for p in z.namelist() if p.lower().endswith("/" + name) and "/intel64/" in p.lower()]
@@ -144,8 +168,14 @@ def sundials(family):
     objdir = BUILD / "sundials-obj"
     objdir.mkdir(exist_ok=True)
     common = [p for p in (src / "sundials").glob("*.c") if p.name != "sundials_profiler.c"]
-    for folder in ("sunmatrix/band", "sunmatrix/dense", "sunlinsol/band", "sunlinsol/dense",
-                   "sunnonlinsol/newton", "sunnonlinsol/fixedpoint"):
+    for folder in (
+        "sunmatrix/band",
+        "sunmatrix/dense",
+        "sunlinsol/band",
+        "sunlinsol/dense",
+        "sunnonlinsol/newton",
+        "sunnonlinsol/fixedpoint",
+    ):
         common.extend(p for p in (src / folder).glob("*.c") if not p.name.startswith("f"))
     groups = {name: sorted(set(common + list((src / name).glob("*.c")))) for name in ("cvodes", "idas", "kinsol")}
     groups["nvecserial"] = [src / "nvector/serial/nvector_serial.c", src / "sundials/sundials_math.c"]
@@ -156,10 +186,23 @@ def sundials(family):
     objects = {}
     for path in sorted(set(p for sources in groups.values() for p in sources)):
         obj = objdir / ("_".join(path.relative_to(src).parts) + ".obj")
-        args = [win.compiler(family), "/nologo", "/TC", "/c", "/MD", "/O2", "/DNDEBUG",
-                "/DSUNDIALS_STATIC_DEFINE", "/DNO_FPRINTF_OUTPUT", "/D_USE_MATH_DEFINES",
-                "/I" + str(source / "include"), "/I" + str(src / "sundials"),
-                "/FI" + str(source / "include/stan_sundials_printf_override.hpp"), str(path), "/Fo" + str(obj)]
+        args = [
+            win.compiler(family),
+            "/nologo",
+            "/TC",
+            "/c",
+            "/MD",
+            "/O2",
+            "/DNDEBUG",
+            "/DSUNDIALS_STATIC_DEFINE",
+            "/DNO_FPRINTF_OUTPUT",
+            "/D_USE_MATH_DEFINES",
+            "/I" + str(source / "include"),
+            "/I" + str(src / "sundials"),
+            "/FI" + str(source / "include/stan_sundials_printf_override.hpp"),
+            str(path),
+            "/Fo" + str(obj),
+        ]
         if family == "cl":
             args.insert(3, "/std:c11")
         win.run(args, objdir)
@@ -174,8 +217,11 @@ def smoke_headers(family, optimization):
     # Two small programs: first header compilation, then full Math header and
     # reverse-mode derivative (compile only before linking dependencies).
     for name, code in (
-        ("prim", '#include <stan/math/prim.hpp>\nint main(){return stan::math::square(2.0)==4.0?0:1;}\n'),
-        ("math", '#include <stan/math.hpp>\nint main(){stan::math::var x=2.0; auto y=x*x; y.grad(); return x.adj()==4.0?0:1;}\n'),
+        ("prim", "#include <stan/math/prim.hpp>\nint main(){return stan::math::square(2.0)==4.0?0:1;}\n"),
+        (
+            "math",
+            "#include <stan/math.hpp>\nint main(){stan::math::var x=2.0; auto y=x*x; y.grad(); return x.adj()==4.0?0:1;}\n",
+        ),
     ):
         path = BUILD / (name + ".cpp")
         path.write_text(code, encoding="utf-8")
@@ -185,8 +231,18 @@ def smoke_headers(family, optimization):
 def smoke_link(family):
     # Test actual runtime linkage and the derivative, not only header parsing.
     exe = BUILD / "math.exe"
-    win.run([win.tool("link"), "/NOLOGO", "/MACHINE:X64", "/OUT:" + str(exe), str(BUILD / "math.obj"),
-             *[str(LIB / (name + ".lib")) for name in win.LIBRARIES], *win.clang_link_args(family)], BUILD)
+    win.run(
+        [
+            win.tool("link"),
+            "/NOLOGO",
+            "/MACHINE:X64",
+            "/OUT:" + str(exe),
+            str(BUILD / "math.obj"),
+            *[str(LIB / (name + ".lib")) for name in win.LIBRARIES],
+            *win.clang_link_args(family),
+        ],
+        BUILD,
+    )
     shutil.copy2(LIB / "tbb.dll", BUILD / "tbb.dll")
     win.run([str(exe)], BUILD)
 
@@ -195,13 +251,23 @@ def services(family, optimization):
     win.compile_cpp(family, PACKAGE / "stan_services.cpp", PACKAGE / "stan_services.obj", optimization)
     with (PACKAGE / "stan_services.obj").open("rb") as fh:
         services_digest = hashlib.file_digest(fh, "sha256").hexdigest()
-    config = {"compiler": family, "optimization": optimization, "python": f"{sys.version_info.major}.{sys.version_info.minor}",
-              "stan": STAN, "math": MATH, "pybind11": PYBIND, "tbb": TBB, "sundials": SUNDIALS,
-              "msvc_version": os.environ.get("VCToolsVersion", "unknown"),
-              "sdk_version": os.environ.get("WindowsSDKVersion", "unknown").rstrip("\\"),
-              "services_sha256": services_digest}
+    config = {
+        "compiler": family,
+        "optimization": optimization,
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "stan": STAN,
+        "math": MATH,
+        "pybind11": PYBIND,
+        "tbb": TBB,
+        "sundials": SUNDIALS,
+        "msvc_version": os.environ.get("VCToolsVersion", "unknown"),
+        "sdk_version": os.environ.get("WindowsSDKVersion", "unknown").rstrip("\\"),
+        "services_sha256": services_digest,
+    }
     if family == "clang-cl":
-        config["clang_version"] = subprocess.check_output([win.compiler(family), "--version"], text=True).splitlines()[0]
+        config["clang_version"] = subprocess.check_output([win.compiler(family), "--version"], text=True).splitlines()[
+            0
+        ]
     win.MANIFEST.write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
     print(win.MANIFEST.read_text(), flush=True)
 
@@ -215,9 +281,13 @@ def main():
     if sys.platform != "win32" or sys.maxsize <= 2**32:
         raise SystemExit("Windows x64 CPython required")
     opt = "/" + args.optimization
-    stages = [("prepare", prepare), ("headers", lambda: smoke_headers(args.compiler, opt)),
-              ("sundials", lambda: sundials(args.compiler)), ("link", lambda: smoke_link(args.compiler)),
-              ("services", lambda: services(args.compiler, opt))]
+    stages = [
+        ("prepare", prepare),
+        ("headers", lambda: smoke_headers(args.compiler, opt)),
+        ("sundials", lambda: sundials(args.compiler)),
+        ("link", lambda: smoke_link(args.compiler)),
+        ("services", lambda: services(args.compiler, opt)),
+    ]
     for name, func in stages:
         if args.stage in (name, "all"):
             print(f"=== {name.upper()} compiler={args.compiler} optimization={opt} ===", flush=True)

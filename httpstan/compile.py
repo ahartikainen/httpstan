@@ -37,7 +37,9 @@ def compile(program_code: str, stan_model_name: str) -> Tuple[str, str]:
                 "--print-cpp",
                 str(filepath),
             ]
-            completed_process = subprocess.run(run_args, capture_output=True, timeout=5 if sys.platform == "win32" else 1)
+            completed_process = subprocess.run(
+                run_args, capture_output=True, timeout=5 if sys.platform == "win32" else 1
+            )
     stderr = completed_process.stderr.decode().strip()
     if completed_process.returncode != 0:
         raise ValueError(stderr)

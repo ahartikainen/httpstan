@@ -1,10 +1,13 @@
 """Test the installed PyStan client with spawn multiprocessing."""
+
 import multiprocessing as mp
 
 
 def main():
-    import httpstan
     import stan
+
+    import httpstan
+
     print("httpstan:", httpstan.__version__, httpstan.__file__, flush=True)
     print("stan:", stan.__version__, stan.__file__, flush=True)
     model = stan.build("parameters {real y;} model {y ~ normal(0,1);}", data={}, random_seed=12345)

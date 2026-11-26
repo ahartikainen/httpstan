@@ -3,6 +3,7 @@ name: httpstan
 on:
   push:
     branches-ignore:
+      - 'support/windows'
       - 'windows-test/**'
   pull_request:
   workflow_dispatch:
